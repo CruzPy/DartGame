@@ -11,14 +11,18 @@ The app is built as a static frontend with plain HTML, CSS, and JavaScript. It i
 - Real nearby places from Google Places
 - Red, green, and yellow business dots
 - Winner reveal card with confetti
+- Closeable winner card that does not reset the current search
+- Place preview card when clicking nearby dots, without changing the winner
+- Draggable, stackable floating cards that work with mouse or touch
+- Shaded scan-radius circle around the dart landing area
+- Search history for reviewing and restoring previous throws
 - Google Maps link for the winner
 - Website link when Google provides one
 - Phone, rating, review count, address, category, and distance from dart
 - Current throw stats:
-  - Nearby Businesses
-  - Website Gap
-  - No Real Website
-  - Website Found
+  - nearest town/city
+  - businesses scanned with website found/not found counts
+  - website gap percentage
 - Reset button to clear the current reveal
 
 ## Website Status Rules

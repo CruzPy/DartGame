@@ -25,6 +25,7 @@
       </div>
       <div class="controls">
         <button id="reset-btn" class="ghost-btn" type="button">Reset</button>
+        <button id="history-btn" class="ghost-btn" type="button">History</button>
         <button id="throw-btn" class="throw-btn" type="button">
           <span class="dart-icon">🎯</span>
           <span class="throw-label">Throw Dart</span>
@@ -33,27 +34,26 @@
     </header>
 
     <section id="stats-strip" class="stats-strip idle" aria-label="Current throw stats">
-      <article>
-        <strong id="nearby-count">0</strong>
-        <span>Nearby Businesses</span>
+      <article class="location-site">
+        <strong id="location-town">-</strong>
+        <span id="location-city">Town / City</span>
       </article>
-      <article>
+      <article class="business-site">
+        <strong id="business-summary">0 scanned</strong>
+        <span id="business-breakdown">0 need site / 0 found</span>
+      </article>
+      <article class="gap-site">
         <strong id="gap-percent">0%</strong>
-        <span>Website Gap</span>
-      </article>
-      <article class="needs-site">
-        <strong id="needs-count">0</strong>
-        <span>No Real Website</span>
-      </article>
-      <article class="has-site">
-        <strong id="has-count">0</strong>
-        <span>Website Found</span>
+        <span id="gap-detail">Website Gap</span>
       </article>
     </section>
 
-    <section id="winner-card" class="winner-card hidden" aria-live="polite">
-      <p id="winner-kicker" class="winner-kicker">Winner Revealed</p>
-      <h2 id="winner-name">Throw a dart to find a business</h2>
+    <section id="winner-card" class="winner-card draggable-window hidden" aria-live="polite">
+      <button id="close-winner-card" class="card-close" type="button" title="Close winner card">x</button>
+      <div class="window-drag-handle" data-drag-handle>
+        <p id="winner-kicker" class="winner-kicker">Winner Revealed</p>
+        <h2 id="winner-name">Throw a dart to find a business</h2>
+      </div>
       <div id="website-badge" class="website-badge unknown">Waiting for scan</div>
       <dl class="winner-details">
         <div>
@@ -90,6 +90,48 @@
         <a id="winner-website-link" class="action-link website-link disabled" href="#" target="_blank" rel="noreferrer">No website link</a>
       </div>
     </section>
+
+    <section id="preview-card" class="preview-card draggable-window hidden" aria-live="polite">
+      <button id="close-preview-card" class="card-close" type="button" title="Close preview card">x</button>
+      <div class="window-drag-handle" data-drag-handle>
+        <p class="preview-kicker">Place Preview</p>
+        <h2 id="preview-name">Select a dot</h2>
+      </div>
+      <div id="preview-badge" class="website-badge unknown">Needs a closer look</div>
+      <dl class="preview-details">
+        <div>
+          <dt>Category</dt>
+          <dd id="preview-category">-</dd>
+        </div>
+        <div>
+          <dt>Distance</dt>
+          <dd id="preview-distance">-</dd>
+        </div>
+        <div>
+          <dt>Rating</dt>
+          <dd id="preview-rating">-</dd>
+        </div>
+        <div class="wide-detail">
+          <dt>Address</dt>
+          <dd id="preview-address">-</dd>
+        </div>
+      </dl>
+      <div class="winner-actions">
+        <a id="preview-google-link" class="action-link google-link" href="#" target="_blank" rel="noreferrer">Open in Google Maps</a>
+        <a id="preview-website-link" class="action-link website-link disabled" href="#" target="_blank" rel="noreferrer">No website link</a>
+      </div>
+    </section>
+
+    <aside id="history-panel" class="history-panel draggable-window hidden" aria-label="Search history">
+      <div class="history-header">
+        <div class="window-drag-handle" data-drag-handle>
+          <p class="preview-kicker">Search History</p>
+          <h2>Previous Throws</h2>
+        </div>
+        <button id="close-history-panel" class="card-close" type="button" title="Close history">x</button>
+      </div>
+      <div id="history-list" class="history-list"></div>
+    </aside>
 
     <div id="confetti-layer" aria-hidden="true"></div>
 

@@ -5,6 +5,7 @@ const DEFAULT_ZOOM = 13;
 const SEARCH_RADIUS_METERS = 1800;
 const MAX_DETAILS_PER_THROW = 18;
 const THROW_COOLDOWN_MS = 900;
+const HISTORY_STORAGE_KEY = 'dart_business_finder_search_history_v1';
 
 const PLACE_STATUS = {
   NEEDS_WEBSITE: 'needs_website',
@@ -37,13 +38,18 @@ const SOCIAL_OR_LISTING_HOSTS = [
 
 let map = null;
 let placesService = null;
+let geocoder = null;
 let dartMarker = null;
 let winnerMarker = null;
 let connectorLine = null;
+let scanCircle = null;
 let placeMarkers = [];
 let currentPlaces = [];
 let lastDartPosition = null;
 let lastThrowAt = 0;
+let searchHistory = [];
+let floatingWindowZ = 50;
+let currentLocationInfo = { town: '-', city: 'Town / City', label: 'Unknown area' };
 
 window.initMap = function () {
   map = new google.maps.Map(document.getElementById('map'), {
@@ -61,8 +67,26 @@ window.initMap = function () {
   });
 
   placesService = new google.maps.places.PlacesService(map);
+  geocoder = new google.maps.Geocoder();
+  searchHistory = loadSearchHistory();
+  renderSearchHistory();
+  updateControlStates();
   setToast('Move around the Dominican Republic, then throw.');
 };
+
+function loadSearchHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveSearchHistory() {
+  localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(searchHistory.slice(0, 25)));
+  updateControlStates();
+}
 
 function isRealBusinessWebsite(url) {
   if (!url) return false;
@@ -209,6 +233,7 @@ function throwDart() {
   resetScreen({ keepToast: true });
   lastDartPosition = position;
   setThrowing(true);
+  updateControlStates();
   setToast('Dart away... scanning nearby businesses.');
 
   dartMarker = new google.maps.Marker({
@@ -242,18 +267,24 @@ function scanNearbyPlaces(position) {
     }
 
     try {
-      const details = await fetchPlaceDetails(results.slice(0, MAX_DETAILS_PER_THROW));
+      const [details, locationInfo] = await Promise.all([
+        fetchPlaceDetails(results.slice(0, MAX_DETAILS_PER_THROW)),
+        reverseGeocodePosition(position),
+      ]);
+      currentLocationInfo = locationInfo;
       currentPlaces = dedupePlaces(details.map(place => normalizePlace(place, position)))
         .filter(place => Number.isFinite(place.latitude) && Number.isFinite(place.longitude))
         .sort((a, b) => a.distanceMeters - b.distanceMeters);
 
       renderPlaceDots(currentPlaces);
+      renderLocationInfo(currentLocationInfo);
       renderStats(currentPlaces);
+      renderScanCircle(position);
       focusThrow(position, currentPlaces);
 
       const winner = pickWinner(currentPlaces);
       if (winner) {
-        revealWinner(position, winner);
+        revealWinner(position, winner, { saveHistory: true });
       } else {
         setToast('No usable place details came back. Try a denser area.');
       }
@@ -278,6 +309,43 @@ function fetchPlaceDetails(places) {
       resolve(status === google.maps.places.PlacesServiceStatus.OK && detail ? detail : place);
     });
   })));
+}
+
+function reverseGeocodePosition(position) {
+  if (!geocoder) return Promise.resolve({ town: '-', city: 'Town / City', label: 'Unknown area' });
+
+  return new Promise(resolve => {
+    geocoder.geocode({ location: position }, (results, status) => {
+      if (status !== 'OK' || !results?.length) {
+        resolve({ town: '-', city: 'Town / City', label: 'Unknown area' });
+        return;
+      }
+
+      const components = results.flatMap(result => result.address_components || []);
+      const town = findAddressComponent(components, [
+        'neighborhood', 'sublocality', 'sublocality_level_1', 'locality',
+      ]) || 'Nearby area';
+      let city = findAddressComponent(components, ['administrative_area_level_2'])
+        || findAddressComponent(components, ['locality'])
+        || findAddressComponent(components, ['administrative_area_level_1'])
+        || 'Dominican Republic';
+
+      if (city === town) {
+        city = findAddressComponent(components, ['administrative_area_level_1']) || 'Dominican Republic';
+      }
+
+      resolve({
+        town,
+        city,
+        label: town === city ? city : `${town}, ${city}`,
+      });
+    });
+  });
+}
+
+function findAddressComponent(components, types) {
+  const component = components.find(item => types.some(type => item.types.includes(type)));
+  return component?.long_name || '';
 }
 
 function dedupePlaces(places) {
@@ -313,26 +381,28 @@ function renderPlaceDots(places) {
       zIndex: place.status === PLACE_STATUS.NEEDS_WEBSITE ? 14 : 10,
     });
 
-    marker.addListener('click', () => revealWinner(lastDartPosition, place));
+    marker.addListener('click', () => showPreviewCard(place));
     placeMarkers.push(marker);
     setTimeout(() => marker.setOpacity(0.92), 70 * index);
   });
 }
 
 function renderStats(places) {
-  const likelyBusinesses = places.filter(place => place.isLikelyBusiness);
-  const needsWebsite = likelyBusinesses.filter(place => place.status === PLACE_STATUS.NEEDS_WEBSITE);
-  const hasWebsite = likelyBusinesses.filter(place => place.status === PLACE_STATUS.HAS_WEBSITE);
-  const websiteGap = likelyBusinesses.length ? Math.round((needsWebsite.length / likelyBusinesses.length) * 100) : 0;
+  const stats = calculateStats(places);
 
-  setText('nearby-count', likelyBusinesses.length || places.length);
-  setText('gap-percent', `${websiteGap}%`);
-  setText('needs-count', needsWebsite.length);
-  setText('has-count', hasWebsite.length);
+  setText('business-summary', `${stats.nearbyCount} scanned`);
+  setText('business-breakdown', `${stats.needsCount} need site / ${stats.hasCount} found`);
+  setText('gap-percent', `${stats.websiteGap}%`);
+  setText('gap-detail', `${stats.needsCount} of ${stats.nearbyCount} without a real website`);
   document.getElementById('stats-strip').classList.remove('idle');
 }
 
-function revealWinner(dartPosition, place) {
+function renderLocationInfo(locationInfo) {
+  setText('location-town', locationInfo?.town || '-');
+  setText('location-city', locationInfo?.city || 'Town / City');
+}
+
+function revealWinner(dartPosition, place, options = {}) {
   if (!place) return;
 
   if (winnerMarker) winnerMarker.setMap(null);
@@ -358,7 +428,8 @@ function revealWinner(dartPosition, place) {
   });
 
   renderWinnerCard(place);
-  launchConfetti();
+  if (options.saveHistory) saveCurrentSearch(place);
+  if (options.confetti !== false) launchConfetti();
   setToast(place.status === PLACE_STATUS.NEEDS_WEBSITE ? 'Winner revealed: no real dedicated website found.' : 'Winner revealed.');
 }
 
@@ -390,9 +461,245 @@ function renderWinnerCard(place) {
   }
 
   const card = document.getElementById('winner-card');
+  bringWindowToFront(card);
   card.classList.remove('hidden', 'revealed');
   void card.offsetWidth;
   card.classList.add('revealed');
+}
+
+function showPreviewCard(place) {
+  if (!place) return;
+
+  setText('preview-name', place.name);
+  setText('preview-category', titleCase(place.category));
+  setText('preview-distance', formatDistance(place.distanceMeters));
+  setText('preview-rating', formatRating(place));
+  setText('preview-address', place.address);
+  setActionLink('preview-google-link', place.googleMapsUrl, 'Open in Google Maps', false);
+  setActionLink('preview-website-link', place.websiteUrl, place.websiteUrl ? 'Open Website' : 'No website link', !place.websiteUrl);
+
+  const badge = document.getElementById('preview-badge');
+  badge.className = 'website-badge';
+  if (place.status === PLACE_STATUS.HAS_WEBSITE) {
+    badge.classList.add('has');
+    badge.textContent = 'Real dedicated website found';
+  } else if (place.status === PLACE_STATUS.NEEDS_WEBSITE) {
+    badge.classList.add('needs');
+    badge.textContent = 'No real dedicated website found';
+  } else {
+    badge.classList.add('unknown');
+    badge.textContent = 'Needs a closer look';
+  }
+
+  const card = document.getElementById('preview-card');
+  bringWindowToFront(card);
+  card.classList.remove('hidden', 'revealed');
+  void card.offsetWidth;
+  card.classList.add('revealed');
+  setToast('Preview opened. Winner stays unchanged.');
+}
+
+function hideWinnerCard() {
+  const card = document.getElementById('winner-card');
+  card.classList.remove('revealed');
+  card.classList.add('hidden');
+}
+
+function hidePreviewCard() {
+  const card = document.getElementById('preview-card');
+  card.classList.remove('revealed');
+  card.classList.add('hidden');
+}
+
+function renderScanCircle(position) {
+  if (scanCircle) scanCircle.setMap(null);
+
+  scanCircle = new google.maps.Circle({
+    center: position,
+    radius: SEARCH_RADIUS_METERS,
+    map,
+    clickable: false,
+    strokeColor: '#2563eb',
+    strokeOpacity: 0.55,
+    strokeWeight: 2,
+    fillColor: '#2563eb',
+    fillOpacity: 0.12,
+    zIndex: 3,
+  });
+}
+
+function saveCurrentSearch(winner) {
+  if (!lastDartPosition || !currentPlaces.length) return;
+
+  const stats = calculateStats(currentPlaces);
+  const entry = {
+    id: `${Date.now()}-${winner.id}`,
+    createdAt: new Date().toISOString(),
+    dartPosition: lastDartPosition,
+    winnerId: winner.id,
+    winner,
+    places: currentPlaces,
+    stats,
+    locationInfo: currentLocationInfo,
+  };
+
+  searchHistory = [entry, ...searchHistory.filter(item => item.id !== entry.id)].slice(0, 25);
+  saveSearchHistory();
+  renderSearchHistory();
+}
+
+function calculateStats(places) {
+  const likelyBusinesses = places.filter(place => place.isLikelyBusiness);
+  const needsWebsite = likelyBusinesses.filter(place => place.status === PLACE_STATUS.NEEDS_WEBSITE);
+  const hasWebsite = likelyBusinesses.filter(place => place.status === PLACE_STATUS.HAS_WEBSITE);
+  const websiteGap = likelyBusinesses.length ? Math.round((needsWebsite.length / likelyBusinesses.length) * 100) : 0;
+
+  return {
+    nearbyCount: likelyBusinesses.length || places.length,
+    websiteGap,
+    needsCount: needsWebsite.length,
+    hasCount: hasWebsite.length,
+  };
+}
+
+function renderSearchHistory() {
+  const list = document.getElementById('history-list');
+  if (!list) return;
+
+  if (!searchHistory.length) {
+    list.innerHTML = '<p class="history-empty">No searches yet. Throw a dart to create one.</p>';
+    return;
+  }
+
+  list.innerHTML = searchHistory.map(entry => {
+    const date = new Date(entry.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const status = entry.winner?.status || PLACE_STATUS.UNSURE;
+    const stats = entry.stats || calculateStats(entry.places || []);
+    const locationLabel = entry.locationInfo?.label || entry.locationInfo?.city || 'Unknown area';
+    return `
+      <button class="history-item ${status}" type="button" data-history-id="${escapeAttr(entry.id)}">
+        <strong>${escapeHtml(entry.winner?.name || 'Unknown winner')}</strong>
+        <span>${escapeHtml(locationLabel)}</span>
+        <span>${date} | ${stats.nearbyCount} nearby | ${stats.websiteGap}% gap</span>
+      </button>
+    `;
+  }).join('');
+}
+
+function hasActiveSearch() {
+  return Boolean(lastDartPosition || currentPlaces.length || dartMarker || winnerMarker || scanCircle || connectorLine || placeMarkers.length);
+}
+
+function updateControlStates() {
+  const resetButton = document.getElementById('reset-btn');
+  const historyButton = document.getElementById('history-btn');
+  if (resetButton) resetButton.disabled = !hasActiveSearch();
+  if (historyButton) historyButton.disabled = searchHistory.length === 0;
+}
+
+function hideHistoryPanel() {
+  document.getElementById('history-panel').classList.add('hidden');
+}
+
+function restoreSearch(entryId) {
+  const entry = searchHistory.find(item => item.id === entryId);
+  if (!entry) return;
+
+  resetScreen({ keepToast: true, keepHistoryOpen: true });
+  lastDartPosition = entry.dartPosition;
+  currentPlaces = entry.places || [];
+  currentLocationInfo = entry.locationInfo || { town: '-', city: 'Town / City', label: 'Unknown area' };
+
+  dartMarker = new google.maps.Marker({
+    position: lastDartPosition,
+    map,
+    title: 'Dart landed here',
+    icon: dartIcon(),
+    zIndex: 30,
+  });
+
+  renderScanCircle(lastDartPosition);
+  renderPlaceDots(currentPlaces);
+  renderLocationInfo(currentLocationInfo);
+  renderStats(currentPlaces);
+  focusThrow(lastDartPosition, currentPlaces);
+  revealWinner(lastDartPosition, entry.winner, { saveHistory: false, confetti: false });
+  updateControlStates();
+  setToast('Search restored from history.');
+}
+
+function bringWindowToFront(windowElement) {
+  if (!windowElement) return;
+  floatingWindowZ += 1;
+  windowElement.style.zIndex = String(floatingWindowZ);
+}
+
+function initializeDraggableWindows() {
+  document.querySelectorAll('.draggable-window').forEach(windowElement => {
+    windowElement.addEventListener('pointerdown', () => bringWindowToFront(windowElement));
+
+    const handle = windowElement.querySelector('[data-drag-handle]');
+    if (!handle) return;
+
+    handle.addEventListener('pointerdown', event => {
+      if (event.button !== undefined && event.button !== 0) return;
+      event.preventDefault();
+      bringWindowToFront(windowElement);
+      prepareWindowForDragging(windowElement);
+
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startLeft = Number.parseFloat(windowElement.style.left) || windowElement.getBoundingClientRect().left;
+      const startTop = Number.parseFloat(windowElement.style.top) || windowElement.getBoundingClientRect().top;
+
+      windowElement.classList.add('is-dragging');
+      handle.setPointerCapture(event.pointerId);
+
+      const onPointerMove = moveEvent => {
+        const nextLeft = startLeft + moveEvent.clientX - startX;
+        const nextTop = startTop + moveEvent.clientY - startY;
+        positionWindow(windowElement, nextLeft, nextTop);
+      };
+
+      const onPointerUp = () => {
+        windowElement.classList.remove('is-dragging');
+        handle.removeEventListener('pointermove', onPointerMove);
+        handle.removeEventListener('pointerup', onPointerUp);
+        handle.removeEventListener('pointercancel', onPointerUp);
+      };
+
+      handle.addEventListener('pointermove', onPointerMove);
+      handle.addEventListener('pointerup', onPointerUp);
+      handle.addEventListener('pointercancel', onPointerUp);
+    });
+  });
+
+  window.addEventListener('resize', () => {
+    document.querySelectorAll('.draggable-window.drag-positioned').forEach(windowElement => {
+      positionWindow(windowElement, Number.parseFloat(windowElement.style.left) || 0, Number.parseFloat(windowElement.style.top) || 0);
+    });
+  });
+}
+
+function prepareWindowForDragging(windowElement) {
+  const rect = windowElement.getBoundingClientRect();
+  windowElement.classList.add('drag-positioned');
+  windowElement.style.left = `${rect.left}px`;
+  windowElement.style.top = `${rect.top}px`;
+  windowElement.style.right = 'auto';
+  windowElement.style.bottom = 'auto';
+}
+
+function positionWindow(windowElement, left, top) {
+  const rect = windowElement.getBoundingClientRect();
+  const margin = 8;
+  const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+  const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+  const nextLeft = Math.min(Math.max(left, margin), maxLeft);
+  const nextTop = Math.min(Math.max(top, margin), maxTop);
+
+  windowElement.style.left = `${nextLeft}px`;
+  windowElement.style.top = `${nextTop}px`;
 }
 
 function setActionLink(id, href, label, disabled) {
@@ -400,6 +707,14 @@ function setActionLink(id, href, label, disabled) {
   link.textContent = label;
   link.href = disabled ? '#' : href;
   link.classList.toggle('disabled', disabled);
+}
+
+function escapeHtml(value = '') {
+  return String(value).replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
+}
+
+function escapeAttr(value = '') {
+  return escapeHtml(value).replace(/'/g, '&#39;');
 }
 
 function launchConfetti() {
@@ -494,28 +809,34 @@ function resetScreen(options = {}) {
   if (dartMarker) dartMarker.setMap(null);
   if (winnerMarker) winnerMarker.setMap(null);
   if (connectorLine) connectorLine.setMap(null);
+  if (scanCircle) scanCircle.setMap(null);
   clearPlaceMarkers();
 
   dartMarker = null;
   winnerMarker = null;
   connectorLine = null;
+  scanCircle = null;
   currentPlaces = [];
+  currentLocationInfo = { town: '-', city: 'Town / City', label: 'Unknown area' };
   lastDartPosition = null;
   stopRadar();
   setThrowing(false);
 
-  setText('nearby-count', '0');
+  renderLocationInfo(currentLocationInfo);
+  setText('business-summary', '0 scanned');
+  setText('business-breakdown', '0 need site / 0 found');
   setText('gap-percent', '0%');
-  setText('needs-count', '0');
-  setText('has-count', '0');
+  setText('gap-detail', 'Website Gap');
   document.getElementById('stats-strip').classList.add('idle');
   const winnerCard = document.getElementById('winner-card');
   winnerCard.classList.remove('revealed');
   winnerCard.classList.add('hidden');
+  hidePreviewCard();
   resetWinnerCardContent();
   document.getElementById('impact-layer').innerHTML = '';
   document.getElementById('confetti-layer').innerHTML = '';
   document.body.classList.remove('impact-shake');
+  updateControlStates();
 
   if (!options.keepToast) setToast('Screen cleared. Throw again when ready.');
 }
@@ -593,6 +914,24 @@ function dotIcon(color, scale) {
 
 document.getElementById('throw-btn').addEventListener('click', throwDart);
 document.getElementById('reset-btn').addEventListener('click', () => resetScreen());
+document.getElementById('history-btn').addEventListener('click', () => {
+  if (!searchHistory.length) return;
+  renderSearchHistory();
+  const historyPanel = document.getElementById('history-panel');
+  bringWindowToFront(historyPanel);
+  historyPanel.classList.remove('hidden');
+});
+document.querySelectorAll('.card-close').forEach(button => {
+  button.addEventListener('pointerdown', event => event.stopPropagation());
+});
+document.getElementById('close-history-panel').addEventListener('click', hideHistoryPanel);
+document.getElementById('close-winner-card').addEventListener('click', hideWinnerCard);
+document.getElementById('close-preview-card').addEventListener('click', hidePreviewCard);
+document.getElementById('history-list').addEventListener('click', event => {
+  const button = event.target.closest('button[data-history-id]');
+  if (button) restoreSearch(button.dataset.historyId);
+});
+initializeDraggableWindows();
 
 (function bootstrap() {
   if (typeof GOOGLE_MAPS_API_KEY === 'undefined' || GOOGLE_MAPS_API_KEY === 'YOUR_API_KEY_HERE') {
