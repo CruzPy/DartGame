@@ -1,0 +1,7 @@
+# Local Google Maps API key
+config.js
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/

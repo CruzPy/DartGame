@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dart Business Finder</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="app-shell">
+    <div id="map" aria-label="Google map"></div>
+
+    <div id="radar-layer" aria-hidden="true">
+      <div class="radar-ring ring-one"></div>
+      <div class="radar-ring ring-two"></div>
+      <div class="radar-sweep"></div>
+    </div>
+
+    <div id="impact-layer" aria-hidden="true"></div>
+
+    <header class="top-bar">
+      <div>
+        <p class="eyebrow">Random business finder</p>
+        <h1>Dart Business Finder</h1>
+      </div>
+      <div class="controls">
+        <button id="reset-btn" class="ghost-btn" type="button">Reset</button>
+        <button id="throw-btn" class="throw-btn" type="button">
+          <span class="dart-icon">🎯</span>
+          <span class="throw-label">Throw Dart</span>
+        </button>
+      </div>
+    </header>
+
+    <section id="stats-strip" class="stats-strip idle" aria-label="Current throw stats">
+      <article>
+        <strong id="nearby-count">0</strong>
+        <span>Nearby Businesses</span>
+      </article>
+      <article>
+        <strong id="gap-percent">0%</strong>
+        <span>Website Gap</span>
+      </article>
+      <article class="needs-site">
+        <strong id="needs-count">0</strong>
+        <span>No Real Website</span>
+      </article>
+      <article class="has-site">
+        <strong id="has-count">0</strong>
+        <span>Website Found</span>
+      </article>
+    </section>
+
+    <section id="winner-card" class="winner-card hidden" aria-live="polite">
+      <p id="winner-kicker" class="winner-kicker">Winner Revealed</p>
+      <h2 id="winner-name">Throw a dart to find a business</h2>
+      <div id="website-badge" class="website-badge unknown">Waiting for scan</div>
+      <dl class="winner-details">
+        <div>
+          <dt>Category</dt>
+          <dd id="winner-category">-</dd>
+        </div>
+        <div>
+          <dt>Distance</dt>
+          <dd id="winner-distance">-</dd>
+        </div>
+        <div>
+          <dt>Rating</dt>
+          <dd id="winner-rating">-</dd>
+        </div>
+        <div>
+          <dt>Phone</dt>
+          <dd id="winner-phone">-</dd>
+        </div>
+        <div>
+          <dt>Business Status</dt>
+          <dd id="winner-business-status">-</dd>
+        </div>
+        <div>
+          <dt>Google Reviews</dt>
+          <dd id="winner-reviews">-</dd>
+        </div>
+        <div class="wide-detail">
+          <dt>Address</dt>
+          <dd id="winner-address">-</dd>
+        </div>
+      </dl>
+      <div class="winner-actions">
+        <a id="winner-google-link" class="action-link google-link" href="#" target="_blank" rel="noreferrer">Open in Google Maps</a>
+        <a id="winner-website-link" class="action-link website-link disabled" href="#" target="_blank" rel="noreferrer">No website link</a>
+      </div>
+    </section>
+
+    <div id="confetti-layer" aria-hidden="true"></div>
+
+    <aside class="legend" aria-label="Marker legend">
+      <div><span class="dot red"></span>No real dedicated website</div>
+      <div><span class="dot green"></span>Website found</div>
+      <div><span class="dot yellow"></span>Needs a closer look</div>
+    </aside>
+
+    <div id="status-toast" class="status-toast">Move around the Dominican Republic, then throw.</div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
