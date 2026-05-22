@@ -27,6 +27,31 @@ const NON_BUSINESS_TYPES = new Set([
   'synagogue', 'tourist_attraction', 'university', 'zoo',
 ]);
 
+const RESIDENTIAL_OR_PRIVATE_TYPES = new Set([
+  'apartment_complex', 'lodging', 'premise', 'subpremise', 'residential', 'street_address',
+  'route', 'intersection', 'plus_code',
+]);
+
+const COMMERCIAL_TYPES = new Set([
+  'accounting', 'bakery', 'bank', 'bar', 'beauty_salon', 'cafe', 'car_dealer', 'car_rental',
+  'car_repair', 'car_wash', 'clothing_store', 'convenience_store', 'dentist', 'doctor',
+  'drugstore', 'electrician', 'electronics_store', 'finance', 'florist', 'food',
+  'furniture_store', 'gas_station', 'general_contractor', 'grocery_or_supermarket', 'gym',
+  'hair_care', 'hardware_store', 'health', 'home_goods_store', 'insurance_agency', 'jewelry_store',
+  'lawyer', 'meal_delivery', 'meal_takeaway', 'moving_company', 'painter', 'pet_store',
+  'pharmacy', 'physiotherapist', 'plumber', 'real_estate_agency', 'restaurant', 'roofing_contractor',
+  'shoe_store', 'shopping_mall', 'spa', 'storage', 'store', 'supermarket', 'travel_agency',
+  'veterinary_care',
+]);
+
+const NON_BUSINESS_NAME_PATTERNS = [
+  /\b(home|house|residence|residencial|residential|private|villa)\b/i,
+  /\b(hiking|trail|sendero|mountain|peak|mirador|lookout)\b/i,
+  /\b(park|parque|playground|beach|river|lagoon|laguna)\b/i,
+];
+
+const MIN_REVIEW_COUNT_FOR_PROSPECT = 8;
+
 const GEOGRAPHIC_PLACE_TYPES = new Set([
   'administrative_area_level_1', 'administrative_area_level_2', 'administrative_area_level_3',
   'administrative_area_level_4', 'administrative_area_level_5', 'colloquial_area', 'country',
@@ -108,21 +133,61 @@ function isRealBusinessWebsite(url) {
   }
 }
 
+function isOperationalStatus(place) {
+  return String(place.business_status || '').toUpperCase() === 'OPERATIONAL';
+}
+
+function hasStrictBusinessSignals(place) {
+  const types = place.types || [];
+  const reviewCount = Number(place.user_ratings_total) || 0;
+  const hasContactSignal = Boolean(place.formatted_phone_number || place.international_phone_number || place.website);
+  const hasCommercialType = types.some(type => COMMERCIAL_TYPES.has(type));
+
+  if (!hasCommercialType) return false;
+  return reviewCount >= MIN_REVIEW_COUNT_FOR_PROSPECT || hasContactSignal;
+}
+
+function hasNonBusinessSignals(place) {
+  const types = place.types || [];
+  const name = String(place.name || '').trim();
+  const blockedType = types.some(type => NON_BUSINESS_TYPES.has(type) || RESIDENTIAL_OR_PRIVATE_TYPES.has(type));
+  const blockedName = NON_BUSINESS_NAME_PATTERNS.some(pattern => pattern.test(name));
+  return blockedType || blockedName;
+}
+
 function classifyPlace(place) {
   const types = place.types || [];
   const websiteUrl = place.website || '';
-  const looksNonCommercial = types.some(type => NON_BUSINESS_TYPES.has(type));
+  const hasRealWebsite = isRealBusinessWebsite(websiteUrl);
 
-  if (looksNonCommercial) {
+  if (hasNonBusinessSignals(place)) {
     return {
       status: PLACE_STATUS.UNSURE,
-      hasRealWebsite: isRealBusinessWebsite(websiteUrl),
+      hasRealWebsite,
       isLikelyBusiness: false,
-      label: 'Needs a closer look',
+      label: 'Filtered out: non-business or private location',
     };
   }
 
-  if (isRealBusinessWebsite(websiteUrl)) {
+  if (!isOperationalStatus(place)) {
+    return {
+      status: PLACE_STATUS.UNSURE,
+      hasRealWebsite,
+      isLikelyBusiness: false,
+      label: 'Filtered out: not currently operational',
+    };
+  }
+
+  if (!hasStrictBusinessSignals(place)) {
+    return {
+      status: PLACE_STATUS.UNSURE,
+      hasRealWebsite,
+      isLikelyBusiness: false,
+      label: 'Filtered out: weak business proof',
+    };
+  }
+
+  if (hasRealWebsite) {
     return {
       status: PLACE_STATUS.HAS_WEBSITE,
       hasRealWebsite: true,
@@ -144,7 +209,7 @@ function classifyPlace(place) {
     status: PLACE_STATUS.UNSURE,
     hasRealWebsite: false,
     isLikelyBusiness: false,
-    label: 'Needs a closer look',
+    label: 'Filtered out by strict qualification',
   };
 }
 
@@ -301,7 +366,7 @@ function scanNearbyPlaces(position) {
       if (winner) {
         revealWinner(position, winner, { saveHistory: true });
       } else {
-        setToast('No likely businesses found near this dart. Try a denser area.');
+        setToast('No qualified operating businesses found. Try a denser commercial area.');
       }
     } catch (error) {
       console.error(error);
