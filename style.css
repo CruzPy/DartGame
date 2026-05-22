@@ -82,14 +82,26 @@ h1 {
 .throw-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 0 18px;
   background: var(--red);
   color: white;
   box-shadow: 0 12px 28px rgba(239, 68, 68, 0.34);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.throw-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.throw-dock {
+  position: fixed;
+  left: 50%;
+  bottom: 74px;
+  z-index: 31;
+  width: clamp(160px, 26vw, 188px);
+  transform: translateX(-50%);
+}
+
+.throw-btn:hover:not(:disabled) { filter: brightness(1.02); }
+.throw-btn:active:not(:disabled) { filter: brightness(0.98); }
 .throw-btn:disabled { cursor: wait; background: #7f8794; box-shadow: none; }
 .throw-btn.throwing .dart-icon { display: inline-block; animation: dart-windup 0.72s ease both; }
 
@@ -120,9 +132,9 @@ h1 {
   left: 16px;
   z-index: 24;
   display: grid;
-  grid-template-columns: minmax(170px, 1.1fr) minmax(170px, 1fr) minmax(150px, 0.9fr);
+  grid-template-columns: minmax(170px, 1.1fr) minmax(170px, 1fr);
   gap: 8px;
-  width: min(720px, calc(100vw - 32px));
+  width: min(560px, calc(100vw - 32px));
   transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
@@ -160,9 +172,9 @@ h1 {
   font-weight: 900;
 }
 
-.stats-strip .location-site { border-color: #2563eb; }
-.stats-strip .business-site { border-color: var(--red); }
-.stats-strip .gap-site { border-color: var(--yellow); }
+.stats-strip .business-site.is-weak { border-color: var(--red); }
+.stats-strip .business-site.is-mid { border-color: var(--yellow); }
+.stats-strip .business-site.is-healthy { border-color: var(--green); }
 
 .winner-card, .preview-card {
   position: fixed;
@@ -238,6 +250,38 @@ h1 {
 }
 
 .card-close:hover { background: #d8e2ee; }
+
+.card-toggle {
+  position: absolute;
+  top: 10px;
+  right: 46px;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: #e8eef6;
+  color: #243044;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 950;
+  line-height: 1;
+  display: none;
+}
+
+.card-toggle:hover { background: #d8e2ee; }
+
+.card-toggle .chevron {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.card-toggle[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+
+.winner-details.is-collapsed {
+  display: none;
+}
 
 .winner-kicker, .preview-kicker {
   margin: 0 0 8px;
@@ -574,10 +618,20 @@ body.impact-shake #map {
   }
 
   .controls { width: 100%; }
-  .throw-btn { flex: 1; justify-content: center; }
+
+  .card-toggle {
+    display: inline-grid;
+    place-items: center;
+  }
+
+  .throw-dock {
+    width: min(188px, calc(100vw - 32px));
+    min-width: 0;
+    bottom: 72px;
+  }
 
   .stats-strip {
-    top: 144px;
+    top: 146px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -589,7 +643,7 @@ body.impact-shake #map {
   }
 
   .winner-card h2 { font-size: 25px; }
-  .winner-actions { grid-template-columns: 1fr; }
+  .winner-actions { grid-template-columns: 1fr 1fr; }
   .legend { display: none; }
   .status-toast { bottom: 18px; }
 }

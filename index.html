@@ -26,10 +26,6 @@
       <div class="controls">
         <button id="reset-btn" class="ghost-btn" type="button">Reset</button>
         <button id="history-btn" class="ghost-btn" type="button">History</button>
-        <button id="throw-btn" class="throw-btn" type="button">
-          <span class="dart-icon">🎯</span>
-          <span class="throw-label">Throw Dart</span>
-        </button>
       </div>
     </header>
 
@@ -38,24 +34,22 @@
         <strong id="location-town">-</strong>
         <span id="location-city">Town / City</span>
       </article>
-      <article class="business-site">
+      <article id="business-site-card" class="business-site">
         <strong id="business-summary">0 scanned</strong>
-        <span id="business-breakdown">0 need site / 0 found</span>
-      </article>
-      <article class="gap-site">
-        <strong id="gap-percent">0%</strong>
-        <span id="gap-detail">Website Gap</span>
+        <span id="business-breakdown">0 need site / 0 has site (0%)</span>
       </article>
     </section>
 
     <section id="winner-card" class="winner-card draggable-window hidden" aria-live="polite">
       <button id="close-winner-card" class="card-close" type="button" title="Close winner card">x</button>
+      <button id="winner-stats-toggle" class="card-toggle" type="button" aria-controls="winner-details" aria-expanded="false" title="Toggle winner stats">
+        <span class="chevron">v</span>
+      </button>
       <div class="window-drag-handle" data-drag-handle>
         <p id="winner-kicker" class="winner-kicker">Winner Revealed</p>
         <h2 id="winner-name">Throw a dart to find a business</h2>
       </div>
-      <div id="website-badge" class="website-badge unknown">Waiting for scan</div>
-      <dl class="winner-details">
+      <dl id="winner-details" class="winner-details">
         <div>
           <dt>Category</dt>
           <dd id="winner-category">-</dd>
@@ -140,6 +134,11 @@
       <div><span class="dot green"></span>Website found</div>
       <div><span class="dot yellow"></span>Needs a closer look</div>
     </aside>
+
+    <button id="throw-btn" class="throw-btn throw-dock" type="button">
+      <span class="dart-icon">🎯</span>
+      <span class="throw-label">Throw Dart</span>
+    </button>
 
     <div id="status-toast" class="status-toast">Move around the Dominican Republic, then throw.</div>
   </main>

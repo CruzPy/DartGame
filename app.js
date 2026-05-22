@@ -58,6 +58,7 @@ let lastThrowAt = 0;
 let searchHistory = [];
 let floatingWindowZ = 50;
 let currentLocationInfo = { town: '-', city: 'Town / City', label: 'Unknown area' };
+let winnerStatsExpanded = false;
 
 window.initMap = function () {
   map = new google.maps.Map(document.getElementById('map'), {
@@ -403,11 +404,18 @@ function renderPlaceDots(places) {
 
 function renderStats(places) {
   const stats = calculateStats(places);
+  const businessCard = document.getElementById('business-site-card');
 
   setText('business-summary', `${stats.nearbyCount} scanned`);
-  setText('business-breakdown', `${stats.needsCount} need site / ${stats.hasCount} found`);
-  setText('gap-percent', `${stats.websiteGap}%`);
-  setText('gap-detail', `${stats.needsCount} of ${stats.nearbyCount} without a real website`);
+  setText('business-breakdown', `${stats.needsCount} need site / ${stats.hasCount} has site (${stats.websiteGap}%)`);
+  if (businessCard) {
+    const isRed = stats.websiteGap >= 70;
+    const isYellow = stats.websiteGap >= 40 && stats.websiteGap < 70;
+    const isGreen = stats.websiteGap < 40;
+    businessCard.classList.toggle('is-weak', isRed);
+    businessCard.classList.toggle('is-mid', isYellow);
+    businessCard.classList.toggle('is-healthy', isGreen);
+  }
   document.getElementById('stats-strip').classList.remove('idle');
 }
 
@@ -460,22 +468,9 @@ function renderWinnerCard(place) {
   setActionLink('winner-google-link', place.googleMapsUrl, 'Open in Google Maps', false);
   setActionLink('winner-website-link', place.websiteUrl, place.websiteUrl ? 'Open Website' : 'No website link', !place.websiteUrl);
 
-  const badge = document.getElementById('website-badge');
-  badge.className = 'website-badge';
-
-  if (place.status === PLACE_STATUS.HAS_WEBSITE) {
-    badge.classList.add('has');
-    badge.textContent = 'Real dedicated website found';
-  } else if (place.status === PLACE_STATUS.NEEDS_WEBSITE) {
-    badge.classList.add('needs');
-    badge.textContent = 'No real dedicated website found';
-  } else {
-    badge.classList.add('unknown');
-    badge.textContent = 'Needs a closer look';
-  }
-
   const card = document.getElementById('winner-card');
   bringWindowToFront(card);
+  setWinnerStatsExpanded(!isMobileViewport());
   card.classList.remove('hidden', 'revealed');
   void card.offsetWidth;
   card.classList.add('revealed');
@@ -755,7 +750,38 @@ function focusThrow(position, places) {
   const bounds = new google.maps.LatLngBounds();
   bounds.extend(position);
   places.forEach(place => bounds.extend({ lat: place.latitude, lng: place.longitude }));
-  map.fitBounds(bounds, { top: 210, right: 460, bottom: 150, left: 90 });
+
+  const isMobileViewport = window.matchMedia('(max-width: 760px)').matches;
+  const padding = isMobileViewport
+    ? { top: 132, right: 24, bottom: 210, left: 24 }
+    : { top: 210, right: 460, bottom: 150, left: 90 };
+
+  map.fitBounds(bounds, padding);
+
+  if (isMobileViewport) {
+    google.maps.event.addListenerOnce(map, 'idle', () => {
+      if (map.getZoom() < 13) map.setZoom(13);
+    });
+  }
+}
+
+function isMobileViewport() {
+  return window.matchMedia('(max-width: 760px)').matches;
+}
+
+function setWinnerStatsExpanded(expanded) {
+  winnerStatsExpanded = Boolean(expanded);
+  syncWinnerStatsVisibility();
+}
+
+function syncWinnerStatsVisibility() {
+  const details = document.getElementById('winner-details');
+  const toggle = document.getElementById('winner-stats-toggle');
+  if (!details || !toggle) return;
+
+  const expanded = isMobileViewport() ? winnerStatsExpanded : true;
+  details.classList.toggle('is-collapsed', !expanded);
+  toggle.setAttribute('aria-expanded', String(expanded));
 }
 
 function startRadar(position) {
@@ -838,9 +864,11 @@ function resetScreen(options = {}) {
 
   renderLocationInfo(currentLocationInfo);
   setText('business-summary', '0 scanned');
-  setText('business-breakdown', '0 need site / 0 found');
-  setText('gap-percent', '0%');
-  setText('gap-detail', 'Website Gap');
+  setText('business-breakdown', '0 need site / 0 has site (0%)');
+  const businessCard = document.getElementById('business-site-card');
+  if (businessCard) {
+    businessCard.classList.remove('is-weak', 'is-mid', 'is-healthy');
+  }
   document.getElementById('stats-strip').classList.add('idle');
   const winnerCard = document.getElementById('winner-card');
   winnerCard.classList.remove('revealed');
@@ -870,12 +898,9 @@ function resetWinnerCardContent() {
   setText('winner-business-status', '-');
   setText('winner-reviews', '-');
   setText('winner-address', '-');
-
-  const badge = document.getElementById('website-badge');
-  badge.className = 'website-badge unknown';
-  badge.textContent = 'Waiting for scan';
   setActionLink('winner-google-link', '#', 'Open in Google Maps', true);
   setActionLink('winner-website-link', '#', 'No website link', true);
+  setWinnerStatsExpanded(!isMobileViewport());
 }
 
 function setToast(message) {
@@ -941,11 +966,17 @@ document.querySelectorAll('.card-close').forEach(button => {
 document.getElementById('close-history-panel').addEventListener('click', hideHistoryPanel);
 document.getElementById('close-winner-card').addEventListener('click', hideWinnerCard);
 document.getElementById('close-preview-card').addEventListener('click', hidePreviewCard);
+document.getElementById('winner-stats-toggle').addEventListener('click', event => {
+  event.stopPropagation();
+  setWinnerStatsExpanded(!winnerStatsExpanded);
+});
 document.getElementById('history-list').addEventListener('click', event => {
   const button = event.target.closest('button[data-history-id]');
   if (button) restoreSearch(button.dataset.historyId);
 });
 initializeDraggableWindows();
+window.addEventListener('resize', syncWinnerStatsVisibility);
+syncWinnerStatsVisibility();
 
 (function bootstrap() {
   if (typeof GOOGLE_MAPS_API_KEY === 'undefined' || GOOGLE_MAPS_API_KEY === 'YOUR_API_KEY_HERE') {
