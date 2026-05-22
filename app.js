@@ -27,6 +27,14 @@ const NON_BUSINESS_TYPES = new Set([
   'synagogue', 'tourist_attraction', 'university', 'zoo',
 ]);
 
+const GEOGRAPHIC_PLACE_TYPES = new Set([
+  'administrative_area_level_1', 'administrative_area_level_2', 'administrative_area_level_3',
+  'administrative_area_level_4', 'administrative_area_level_5', 'colloquial_area', 'country',
+  'geocode', 'locality', 'political', 'postal_code', 'postal_town', 'sublocality',
+  'sublocality_level_1', 'sublocality_level_2', 'sublocality_level_3', 'sublocality_level_4',
+  'sublocality_level_5',
+]);
+
 const SOCIAL_OR_LISTING_HOSTS = [
   'instagram.com', 'facebook.com', 'fb.com', 'wa.me', 'whatsapp.com',
   'api.whatsapp.com', 'tiktok.com', 'youtube.com', 'youtu.be', 'linktr.ee',
@@ -139,6 +147,10 @@ function classifyPlace(place) {
   };
 }
 
+function isGeographicPlace(types = []) {
+  return types.some(type => GEOGRAPHIC_PLACE_TYPES.has(type));
+}
+
 function normalizePlace(place, dartPosition) {
   const location = place.geometry?.location;
   const latitude = typeof location?.lat === 'function' ? location.lat() : location?.lat;
@@ -148,6 +160,7 @@ function normalizePlace(place, dartPosition) {
   return {
     id: place.place_id || `${slugify(place.name)}-${roundCoord(latitude)}-${roundCoord(longitude)}`,
     name: place.name || 'Unnamed place',
+    types: Array.isArray(place.types) ? place.types : [],
     category: getCategory(place.types),
     address: place.formatted_address || place.vicinity || 'Address not available',
     phone: place.international_phone_number || place.formatted_phone_number || '',
@@ -274,6 +287,7 @@ function scanNearbyPlaces(position) {
       currentLocationInfo = locationInfo;
       currentPlaces = dedupePlaces(details.map(place => normalizePlace(place, position)))
         .filter(place => Number.isFinite(place.latitude) && Number.isFinite(place.longitude))
+        .filter(place => !isGeographicPlace(place.types || []))
         .sort((a, b) => a.distanceMeters - b.distanceMeters);
 
       renderPlaceDots(currentPlaces);
@@ -286,7 +300,7 @@ function scanNearbyPlaces(position) {
       if (winner) {
         revealWinner(position, winner, { saveHistory: true });
       } else {
-        setToast('No usable place details came back. Try a denser area.');
+        setToast('No likely businesses found near this dart. Try a denser area.');
       }
     } catch (error) {
       console.error(error);
@@ -365,7 +379,7 @@ function pickWinner(places) {
   const likelyBusiness = places.filter(place => place.isLikelyBusiness);
   if (likelyBusiness.length) return likelyBusiness[0];
 
-  return places[0] || null;
+  return null;
 }
 
 function renderPlaceDots(places) {
@@ -555,7 +569,7 @@ function calculateStats(places) {
   const websiteGap = likelyBusinesses.length ? Math.round((needsWebsite.length / likelyBusinesses.length) * 100) : 0;
 
   return {
-    nearbyCount: likelyBusinesses.length || places.length,
+    nearbyCount: likelyBusinesses.length,
     websiteGap,
     needsCount: needsWebsite.length,
     hasCount: hasWebsite.length,
