@@ -4,6 +4,7 @@ const DEFAULT_CENTER = { lat: 18.4861, lng: -69.9312 };
 const DEFAULT_ZOOM = 13;
 const SEARCH_RADIUS_METERS = 1800;
 const MAX_DETAILS_PER_THROW = 18;
+const MAX_AUTO_THROW_ATTEMPTS = 8;
 const THROW_COOLDOWN_MS = 900;
 const HISTORY_STORAGE_KEY = 'dart_business_finder_search_history_v1';
 const AREA_SELECTION_HISTORY_KEY = 'dart_business_finder_area_selection_history_v1';
@@ -359,18 +360,91 @@ function throwDart() {
   if (now - lastThrowAt < THROW_COOLDOWN_MS) return;
   lastThrowAt = now;
 
-  const position = randomPositionInBounds();
-  if (!position) {
-    setToast('Map is still loading. Try again in a moment.');
-    return;
-  }
-
   resetScreen({ keepToast: true, keepBoundary: true });
   hideSelectionWindows();
-  lastDartPosition = position;
   setThrowing(true);
   updateControlStates();
-  setToast('Dart away... scanning nearby businesses.');
+  setToast('Finding a dart that lands near a qualified business...');
+
+  findQualifiedThrow()
+    .then(result => {
+      if (!result) {
+        setToast(`No qualified operating businesses found after ${MAX_AUTO_THROW_ATTEMPTS} automatic throws. Try a denser commercial area.`);
+        return;
+      }
+
+      presentThrowResult(result);
+    })
+    .catch(error => {
+      console.error(error);
+      setToast('Something went wrong while scanning. Try again.');
+    })
+    .finally(() => finishScan());
+}
+
+async function findQualifiedThrow() {
+  for (let attempt = 1; attempt <= MAX_AUTO_THROW_ATTEMPTS; attempt += 1) {
+    const position = randomPositionInBounds();
+    if (!position) return null;
+
+    if (attempt > 1) setToast(`No winner yet. Trying dart ${attempt} of ${MAX_AUTO_THROW_ATTEMPTS}...`);
+
+    const result = await scanCandidatePosition(position);
+    if (result?.winner) return result;
+  }
+
+  return null;
+}
+
+function scanCandidatePosition(position) {
+  return new Promise((resolve, reject) => {
+    placesService.nearbySearch({
+      location: position,
+      radius: SEARCH_RADIUS_METERS,
+      type: 'establishment',
+    }, async (results, status) => {
+      const PS = google.maps.places.PlacesServiceStatus;
+
+      if (status === PS.ZERO_RESULTS || !results?.length) {
+        resolve(null);
+        return;
+      }
+
+      if (status !== PS.OK) {
+        reject(new Error(`Places scan failed: ${status}`));
+        return;
+      }
+
+      try {
+        const details = await fetchPlaceDetails(results.slice(0, MAX_DETAILS_PER_THROW));
+        const places = dedupePlaces(details.map(place => normalizePlace(place, position)))
+          .filter(place => Number.isFinite(place.latitude) && Number.isFinite(place.longitude))
+          .filter(place => !isGeographicPlace(place.types || []))
+          .sort((a, b) => a.distanceMeters - b.distanceMeters);
+        const winner = pickWinner(places);
+
+        if (!winner) {
+          resolve(null);
+          return;
+        }
+
+        const locationInfo = await reverseGeocodePosition(position);
+        resolve({ position, places, winner, locationInfo });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+}
+
+function presentThrowResult({ position, places, winner, locationInfo }) {
+  lastDartPosition = position;
+  currentLocationInfo = locationInfo;
+  currentPlaces = places;
+
+  setToast('Dart landed near a qualified business. Revealing winner...');
+  map.panTo(position);
+  startImpactAnimation(position);
 
   dartMarker = new google.maps.Marker({
     position,
@@ -381,57 +455,13 @@ function throwDart() {
     zIndex: 30,
   });
 
-  map.panTo(position);
-  startImpactAnimation(position);
-  startRadar(position);
-
-  setTimeout(() => scanNearbyPlaces(position), 450);
-}
-
-function scanNearbyPlaces(position) {
-  placesService.nearbySearch({
-    location: position,
-    radius: SEARCH_RADIUS_METERS,
-    type: 'establishment',
-  }, async (results, status) => {
-    const PS = google.maps.places.PlacesServiceStatus;
-
-    if (status !== PS.OK || !results?.length) {
-      finishScan();
-      setToast(status === PS.ZERO_RESULTS ? 'No businesses found near this dart. Throw again.' : `Scan failed: ${status}`);
-      return;
-    }
-
-    try {
-      const [details, locationInfo] = await Promise.all([
-        fetchPlaceDetails(results.slice(0, MAX_DETAILS_PER_THROW)),
-        reverseGeocodePosition(position),
-      ]);
-      currentLocationInfo = locationInfo;
-      currentPlaces = dedupePlaces(details.map(place => normalizePlace(place, position)))
-        .filter(place => Number.isFinite(place.latitude) && Number.isFinite(place.longitude))
-        .filter(place => !isGeographicPlace(place.types || []))
-        .sort((a, b) => a.distanceMeters - b.distanceMeters);
-
-      renderPlaceDots(currentPlaces);
-      renderLocationInfo(currentLocationInfo);
-      renderStats(currentPlaces);
-      renderScanCircle(position);
-      focusThrow(position, currentPlaces);
-
-      const winner = pickWinner(currentPlaces);
-      if (winner) {
-        revealWinner(position, winner, { saveHistory: true });
-      } else {
-        setToast('No qualified operating businesses found. Try a denser commercial area.');
-      }
-    } catch (error) {
-      console.error(error);
-      setToast('Something went wrong while scanning. Try again.');
-    } finally {
-      finishScan();
-    }
-  });
+  renderPlaceDots(currentPlaces);
+  renderLocationInfo(currentLocationInfo);
+  renderStats(currentPlaces);
+  renderScanCircle(position);
+  focusThrow(position, currentPlaces);
+  revealWinner(position, winner, { saveHistory: true });
+  updateControlStates();
 }
 
 function fetchPlaceDetails(places) {
