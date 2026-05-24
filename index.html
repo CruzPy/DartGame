@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dart Business Finder</title>
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
   <main id="app-shell">
     <div id="map" aria-label="Google map"></div>
@@ -19,22 +21,25 @@
     <div id="impact-layer" aria-hidden="true"></div>
 
     <header class="top-bar">
-      <div>
+      <div class="brand-block">
         <p class="eyebrow">Random business finder</p>
         <h1>Dart Business Finder</h1>
+        <a class="creator-tag" href="https://www.instagram.com/Hansellcrz" target="_blank" rel="noreferrer">Created by @Hansellcrz</a>
       </div>
       <div class="controls">
         <div id="area-control" class="area-control">
-          <button id="select-area-btn" class="ghost-btn" type="button" aria-expanded="false" aria-controls="area-search-window search-boundary-window">Select Area</button>
-          <button id="clear-selected-area-btn" class="area-clear-btn hidden" type="button" title="Clear selected area" aria-label="Clear selected area">x</button>
+          <button id="select-area-btn" class="ghost-btn" type="button" aria-expanded="false"
+            aria-controls="area-search-window search-boundary-window">Select Area</button>
+          <button id="clear-selected-area-btn" class="area-clear-btn hidden" type="button" title="Clear selected area"
+            aria-label="Clear selected area">x</button>
         </div>
         <button id="history-btn" class="ghost-btn" type="button">History</button>
         <button id="reset-btn" class="ghost-btn" type="button">Reset</button>
       </div>
     </header>
 
-    <section id="area-search-window" class="area-window area-search-window hidden" aria-label="Area search selector">
-      <div class="area-selector-header">
+    <section id="area-search-window" class="area-window area-search-window draggable-window hidden" aria-label="Area search selector">
+      <div class="area-selector-header window-drag-handle" data-drag-handle>
         <div>
           <p class="preview-kicker">Area Search</p>
           <h2>Find a Place</h2>
@@ -42,16 +47,29 @@
         <button id="close-area-search-window" class="card-close" type="button" title="Minimize search">x</button>
       </div>
       <label class="area-search-label" for="area-search-input">City, state, or country</label>
-      <input id="area-search-input" class="area-search-input" type="text" autocomplete="off" placeholder="Search a place" />
+      <input id="area-search-input" class="area-search-input" type="text" autocomplete="off"
+        placeholder="Search a place" />
+      <div class="area-recent-header">
+        <span>Recent selections</span>
+        <button id="clear-area-selection-history-btn" type="button">Clear all</button>
+      </div>
+      <div id="area-selection-history" class="area-selection-history"></div>
     </section>
 
-    <section id="search-boundary-window" class="area-window search-boundary-window hidden" aria-label="Custom radius selector">
-      <div class="area-selector-header">
+    <section id="search-boundary-window" class="area-window search-boundary-window draggable-window hidden"
+      aria-label="Custom radius selector">
+      <div class="area-selector-header window-drag-handle" data-drag-handle>
         <div>
-          <p class="preview-kicker">Custom</p>
-          <h2 id="area-boundary-title">Custom</h2>
+          <button id="custom-boundary-name-btn" class="custom-name-btn" type="button" title="Rename custom boundary">
+            <span id="custom-boundary-name">Custom</span>
+            <span class="pencil-icon" aria-hidden="true">✎</span>
+          </button>
+          <input id="custom-boundary-name-input" class="custom-name-input hidden" type="text" maxlength="40"
+            aria-label="Custom boundary name" />
+          <h2 id="area-boundary-title">Select the Area</h2>
         </div>
-        <button id="close-search-boundary-window" class="card-close" type="button" title="Minimize custom boundary">x</button>
+        <button id="close-search-boundary-window" class="card-close" type="button"
+          title="Minimize custom boundary">x</button>
       </div>
       <label class="radius-control" for="area-radius-slider">
         <span>Radius</span>
@@ -73,7 +91,8 @@
 
     <section id="winner-card" class="winner-card draggable-window hidden" aria-live="polite">
       <button id="close-winner-card" class="card-close" type="button" title="Close winner card">x</button>
-      <button id="winner-stats-toggle" class="card-toggle" type="button" aria-controls="winner-details" aria-expanded="false" title="Toggle winner stats">
+      <button id="winner-stats-toggle" class="card-toggle" type="button" aria-controls="winner-details"
+        aria-expanded="false" title="Toggle winner stats">
         <span class="chevron">v</span>
       </button>
       <div class="window-drag-handle" data-drag-handle>
@@ -111,8 +130,10 @@
         </div>
       </dl>
       <div class="winner-actions">
-        <a id="winner-google-link" class="action-link google-link" href="#" target="_blank" rel="noreferrer">Open in Google Maps</a>
-        <a id="winner-website-link" class="action-link website-link disabled" href="#" target="_blank" rel="noreferrer">No website link</a>
+        <a id="winner-google-link" class="action-link google-link" href="#" target="_blank" rel="noreferrer">Open in
+          Google Maps</a>
+        <a id="winner-website-link" class="action-link website-link disabled" href="#" target="_blank"
+          rel="noreferrer">No website link</a>
       </div>
     </section>
 
@@ -142,8 +163,10 @@
         </div>
       </dl>
       <div class="winner-actions">
-        <a id="preview-google-link" class="action-link google-link" href="#" target="_blank" rel="noreferrer">Open in Google Maps</a>
-        <a id="preview-website-link" class="action-link website-link disabled" href="#" target="_blank" rel="noreferrer">No website link</a>
+        <a id="preview-google-link" class="action-link google-link" href="#" target="_blank" rel="noreferrer">Open in
+          Google Maps</a>
+        <a id="preview-website-link" class="action-link website-link disabled" href="#" target="_blank"
+          rel="noreferrer">No website link</a>
       </div>
     </section>
 
@@ -177,4 +200,5 @@
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
+
 </html>

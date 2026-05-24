@@ -9,6 +9,7 @@ The app is built as a static frontend with plain HTML, CSS, and JavaScript. It i
 - Fullscreen Google Map centered on Santo Domingo by default
 - Selectable dart landing boundaries by city, state, country, or map-click Custom boundary
 - Adjustable Custom boundary radius in miles
+- Recent area selection history with place and Custom boundary restores
 - Dart throw animation with impact pulse and radar scan
 - Real nearby places from Google Places
 - Red, green, and yellow business dots

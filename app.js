@@ -6,6 +6,8 @@ const SEARCH_RADIUS_METERS = 1800;
 const MAX_DETAILS_PER_THROW = 18;
 const THROW_COOLDOWN_MS = 900;
 const HISTORY_STORAGE_KEY = 'dart_business_finder_search_history_v1';
+const AREA_SELECTION_HISTORY_KEY = 'dart_business_finder_area_selection_history_v1';
+const MAX_AREA_SELECTION_HISTORY = 10;
 const DEFAULT_BOUNDARY_RADIUS_MILES = 25;
 const MILES_TO_METERS = 1609.344;
 
@@ -86,6 +88,7 @@ let currentPlaces = [];
 let lastDartPosition = null;
 let lastThrowAt = 0;
 let searchHistory = [];
+let areaSelectionHistory = [];
 let floatingWindowZ = 50;
 let currentLocationInfo = { town: '-', city: 'Town / City', label: 'Unknown area' };
 let winnerStatsExpanded = false;
@@ -109,7 +112,9 @@ window.initMap = function () {
   geocoder = new google.maps.Geocoder();
   initializeAreaSelector();
   searchHistory = loadSearchHistory();
+  areaSelectionHistory = loadAreaSelectionHistory();
   renderSearchHistory();
+  renderAreaSelectionHistory();
   updateControlStates();
   setToast('Move around the Dominican Republic, then throw.');
 };
@@ -126,6 +131,27 @@ function loadSearchHistory() {
 function saveSearchHistory() {
   localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(searchHistory.slice(0, 25)));
   updateControlStates();
+}
+
+function loadAreaSelectionHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(AREA_SELECTION_HISTORY_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter(isValidAreaSelectionEntry).slice(0, MAX_AREA_SELECTION_HISTORY) : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveAreaSelectionHistory() {
+  localStorage.setItem(AREA_SELECTION_HISTORY_KEY, JSON.stringify(areaSelectionHistory.slice(0, MAX_AREA_SELECTION_HISTORY)));
+  renderAreaSelectionHistory();
+}
+
+function isValidAreaSelectionEntry(entry) {
+  if (!entry || typeof entry !== 'object' || !entry.id || !entry.type || !entry.label) return false;
+  if (entry.type === 'circle') return entry.center && Number.isFinite(entry.center.lat) && Number.isFinite(entry.center.lng);
+  if (entry.type === 'bounds') return entry.bounds && ['north', 'south', 'east', 'west'].every(key => Number.isFinite(entry.bounds[key]));
+  return false;
 }
 
 function isRealBusinessWebsite(url) {
@@ -686,6 +712,7 @@ function applyPlaceBoundary(place) {
 
   syncAreaSelectorUi();
   updateControlStates();
+  saveRecentAreaSelection();
   hideSearchBoundaryWindow();
   setToast(`Darts will now land inside ${label}.`);
 }
@@ -715,6 +742,7 @@ function applyManualBoundary(center, label = 'Custom') {
   map.fitBounds(boundaryShape.getBounds(), { top: 150, right: 80, bottom: 120, left: 80 });
   syncAreaSelectorUi();
   updateControlStates();
+  saveRecentAreaSelection();
   setToast(`Custom boundary set to ${formatMiles(getBoundaryRadiusMiles())}.`);
 }
 
@@ -722,6 +750,7 @@ function updateManualBoundaryRadius() {
   if (selectedBoundary?.type !== 'circle' || !boundaryShape) return;
   selectedBoundary.radiusMeters = getBoundaryRadiusMeters();
   boundaryShape.setRadius(selectedBoundary.radiusMeters);
+  saveRecentAreaSelection();
 }
 
 function clearSelectedBoundary(options = {}) {
@@ -795,17 +824,191 @@ function syncAreaSelectorUi() {
   const areaControl = document.getElementById('area-control');
   const selectButton = document.getElementById('select-area-btn');
   const clearButton = document.getElementById('clear-selected-area-btn');
+  const customName = document.getElementById('custom-boundary-name');
+  const customNameInput = document.getElementById('custom-boundary-name-input');
   const radiusValue = document.getElementById('area-radius-value');
   const searchBoundaryWindow = document.getElementById('search-boundary-window');
   const hasBoundary = Boolean(selectedBoundary);
   const hasSearchBoundary = selectedBoundary?.type === 'circle';
 
-  if (title) title.textContent = selectedBoundary?.label || 'Whole visible map';
+  if (title) title.textContent = selectedBoundary?.type === 'circle' ? 'Select the Area' : 'Whole visible map';
   if (selectButton) selectButton.textContent = selectedBoundary?.label || 'Select Area';
+  if (customName) customName.textContent = hasSearchBoundary ? selectedBoundary.label || 'Custom' : 'Custom';
+  if (customNameInput && customNameInput.classList.contains('hidden')) {
+    customNameInput.value = hasSearchBoundary ? selectedBoundary.label || 'Custom' : 'Custom';
+  }
   if (areaControl) areaControl.classList.toggle('is-selected', hasBoundary);
   if (clearButton) clearButton.classList.toggle('hidden', !hasBoundary);
   if (radiusValue) radiusValue.textContent = formatMiles(getBoundaryRadiusMiles());
   searchBoundaryWindow?.classList.toggle('has-boundary', hasSearchBoundary);
+}
+
+function saveRecentAreaSelection() {
+  const entry = serializeSelectedBoundary();
+  if (!entry) return;
+
+  areaSelectionHistory = [entry, ...areaSelectionHistory.filter(item => item.id !== entry.id)]
+    .slice(0, MAX_AREA_SELECTION_HISTORY);
+  saveAreaSelectionHistory();
+}
+
+function serializeSelectedBoundary() {
+  if (!selectedBoundary) return null;
+
+  if (selectedBoundary.type === 'circle') {
+    const radiusMiles = selectedBoundary.radiusMeters / MILES_TO_METERS;
+    return {
+      id: `circle-${roundCoord(selectedBoundary.center.lat)}-${roundCoord(selectedBoundary.center.lng)}`,
+      type: 'circle',
+      label: selectedBoundary.label || 'Custom',
+      center: selectedBoundary.center,
+      radiusMeters: selectedBoundary.radiusMeters,
+      radiusMiles,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  if (selectedBoundary.type === 'bounds') {
+    const ne = selectedBoundary.bounds.getNorthEast();
+    const sw = selectedBoundary.bounds.getSouthWest();
+    const bounds = { north: ne.lat(), east: ne.lng(), south: sw.lat(), west: sw.lng() };
+    return {
+      id: `bounds-${slugify(selectedBoundary.label)}-${roundCoord(bounds.north)}-${roundCoord(bounds.west)}`,
+      type: 'bounds',
+      label: selectedBoundary.label || 'Selected area',
+      bounds,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  return null;
+}
+
+function renderAreaSelectionHistory() {
+  const list = document.getElementById('area-selection-history');
+  const clearButton = document.getElementById('clear-area-selection-history-btn');
+  if (!list || !clearButton) return;
+
+  clearButton.disabled = areaSelectionHistory.length === 0;
+  if (!areaSelectionHistory.length) {
+    list.innerHTML = '<p class="area-selection-empty">No recent selections yet.</p>';
+    return;
+  }
+
+  list.innerHTML = areaSelectionHistory.map(entry => {
+    const meta = entry.type === 'circle' ? `Custom | ${formatMiles(entry.radiusMiles || DEFAULT_BOUNDARY_RADIUS_MILES)}` : 'Place boundary';
+    return `
+      <button class="area-selection-item ${entry.type}" type="button" data-area-selection-id="${escapeAttr(entry.id)}">
+        <strong>${escapeHtml(entry.label)}</strong>
+        <span>${escapeHtml(meta)}</span>
+      </button>
+    `;
+  }).join('');
+}
+
+function restoreAreaSelection(entryId) {
+  const entry = areaSelectionHistory.find(item => item.id === entryId);
+  if (!entry) return;
+
+  if (entry.type === 'circle') {
+    const miles = Number(entry.radiusMiles) || (Number(entry.radiusMeters) || getBoundaryRadiusMeters()) / MILES_TO_METERS;
+    setBoundaryRadiusMiles(miles);
+    applyManualBoundary(entry.center, entry.label || 'Custom');
+    showSearchBoundaryWindow();
+    setToast(`Custom boundary restored at ${formatMiles(miles)}.`);
+    return;
+  }
+
+  if (entry.type === 'bounds') {
+    applyStoredBoundsBoundary(entry);
+    hideSearchBoundaryWindow();
+    showAreaSelector({ focusSearch: false });
+    setToast(`${entry.label} restored.`);
+  }
+}
+
+function applyStoredBoundsBoundary(entry) {
+  clearBoundaryShape();
+  const bounds = new google.maps.LatLngBounds(
+    { lat: entry.bounds.south, lng: entry.bounds.west },
+    { lat: entry.bounds.north, lng: entry.bounds.east }
+  );
+  selectedBoundary = { type: 'bounds', bounds, label: entry.label };
+  boundaryShape = new google.maps.Rectangle({
+    bounds,
+    map,
+    clickable: false,
+    strokeColor: '#0f766e',
+    strokeOpacity: 0.72,
+    strokeWeight: 2,
+    fillColor: '#14b8a6',
+    fillOpacity: 0.13,
+    zIndex: 2,
+  });
+  map.fitBounds(bounds, { top: 150, right: 80, bottom: 120, left: 80 });
+  syncAreaSelectorUi();
+  updateControlStates();
+  saveRecentAreaSelection();
+}
+
+function setBoundaryRadiusMiles(miles) {
+  const slider = document.getElementById('area-radius-slider');
+  if (!slider) return;
+  const min = Number(slider.min) || 1;
+  const max = Number(slider.max) || 250;
+  slider.value = String(Math.min(Math.max(Math.round(miles), min), max));
+}
+
+function clearAreaSelectionHistory() {
+  areaSelectionHistory = [];
+  saveAreaSelectionHistory();
+  setToast('Recent area selections cleared.');
+}
+
+function beginCustomBoundaryRename() {
+  if (selectedBoundary?.type !== 'circle') return;
+
+  const button = document.getElementById('custom-boundary-name-btn');
+  const input = document.getElementById('custom-boundary-name-input');
+  button.classList.add('hidden');
+  input.classList.remove('hidden');
+  input.value = selectedBoundary.label || 'Custom';
+  input.focus();
+  input.select();
+}
+
+function commitCustomBoundaryRename() {
+  const input = document.getElementById('custom-boundary-name-input');
+  if (input.classList.contains('hidden')) return;
+
+  if (selectedBoundary?.type !== 'circle') {
+    finishCustomBoundaryRenameEdit();
+    syncAreaSelectorUi();
+    return;
+  }
+
+  const trimmedName = input.value.trim();
+  if (!trimmedName) {
+    cancelCustomBoundaryRename();
+    setToast('Custom boundary name was not changed.');
+    return;
+  }
+
+  selectedBoundary.label = trimmedName;
+  finishCustomBoundaryRenameEdit();
+  syncAreaSelectorUi();
+  saveRecentAreaSelection();
+  setToast(`Custom boundary renamed to ${trimmedName}.`);
+}
+
+function cancelCustomBoundaryRename() {
+  finishCustomBoundaryRenameEdit();
+  syncAreaSelectorUi();
+}
+
+function finishCustomBoundaryRenameEdit() {
+  document.getElementById('custom-boundary-name-btn').classList.remove('hidden');
+  document.getElementById('custom-boundary-name-input').classList.add('hidden');
 }
 
 function pulseBoundaryShape() {
@@ -1256,6 +1459,24 @@ document.getElementById('select-area-btn').addEventListener('click', () => {
 });
 document.getElementById('close-area-search-window').addEventListener('click', hideAreaSelector);
 document.getElementById('close-search-boundary-window').addEventListener('click', hideSearchBoundaryWindow);
+document.getElementById('custom-boundary-name-btn').addEventListener('pointerdown', event => event.stopPropagation());
+document.getElementById('custom-boundary-name-btn').addEventListener('click', event => {
+  event.stopPropagation();
+  beginCustomBoundaryRename();
+});
+document.getElementById('custom-boundary-name-input').addEventListener('pointerdown', event => event.stopPropagation());
+document.getElementById('custom-boundary-name-input').addEventListener('click', event => event.stopPropagation());
+document.getElementById('custom-boundary-name-input').addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    commitCustomBoundaryRename();
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    cancelCustomBoundaryRename();
+  }
+});
+document.getElementById('custom-boundary-name-input').addEventListener('blur', commitCustomBoundaryRename);
 document.getElementById('clear-selected-area-btn').addEventListener('click', event => {
   event.stopPropagation();
   clearSelectedBoundary();
@@ -1265,6 +1486,11 @@ document.getElementById('area-radius-slider').addEventListener('input', () => {
   syncAreaSelectorUi();
 });
 document.getElementById('area-search-input').addEventListener('pointerenter', pulseBoundaryShape);
+document.getElementById('area-selection-history').addEventListener('click', event => {
+  const button = event.target.closest('button[data-area-selection-id]');
+  if (button) restoreAreaSelection(button.dataset.areaSelectionId);
+});
+document.getElementById('clear-area-selection-history-btn').addEventListener('click', clearAreaSelectionHistory);
 document.getElementById('history-btn').addEventListener('click', () => {
   if (!searchHistory.length) return;
   renderSearchHistory();
