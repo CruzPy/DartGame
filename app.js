@@ -369,7 +369,7 @@ function throwDart() {
   findQualifiedThrow()
     .then(result => {
       if (!result) {
-        setToast(`No qualified operating businesses found after ${MAX_AUTO_THROW_ATTEMPTS} automatic throws. Try a denser commercial area.`);
+        setToast('No qualified operating businesses found. Try a denser commercial area.');
         return;
       }
 
@@ -386,8 +386,6 @@ async function findQualifiedThrow() {
   for (let attempt = 1; attempt <= MAX_AUTO_THROW_ATTEMPTS; attempt += 1) {
     const position = randomPositionInBounds();
     if (!position) return null;
-
-    if (attempt > 1) setToast(`No winner yet. Trying dart ${attempt} of ${MAX_AUTO_THROW_ATTEMPTS}...`);
 
     const result = await scanCandidatePosition(position);
     if (result?.winner) return result;
@@ -526,13 +524,7 @@ function dedupePlaces(places) {
 }
 
 function pickWinner(places) {
-  const likelyWithoutWebsite = places.filter(place => place.isLikelyBusiness && place.status === PLACE_STATUS.NEEDS_WEBSITE);
-  if (likelyWithoutWebsite.length) return likelyWithoutWebsite[0];
-
-  const likelyBusiness = places.filter(place => place.isLikelyBusiness);
-  if (likelyBusiness.length) return likelyBusiness[0];
-
-  return null;
+  return places.find(place => place.isLikelyBusiness && place.status === PLACE_STATUS.NEEDS_WEBSITE) || null;
 }
 
 function renderPlaceDots(places) {
