@@ -24,10 +24,41 @@
         <h1>Dart Business Finder</h1>
       </div>
       <div class="controls">
-        <button id="reset-btn" class="ghost-btn" type="button">Reset</button>
+        <div id="area-control" class="area-control">
+          <button id="select-area-btn" class="ghost-btn" type="button" aria-expanded="false" aria-controls="area-search-window search-boundary-window">Select Area</button>
+          <button id="clear-selected-area-btn" class="area-clear-btn hidden" type="button" title="Clear selected area" aria-label="Clear selected area">x</button>
+        </div>
         <button id="history-btn" class="ghost-btn" type="button">History</button>
+        <button id="reset-btn" class="ghost-btn" type="button">Reset</button>
       </div>
     </header>
+
+    <section id="area-search-window" class="area-window area-search-window hidden" aria-label="Area search selector">
+      <div class="area-selector-header">
+        <div>
+          <p class="preview-kicker">Area Search</p>
+          <h2>Find a Place</h2>
+        </div>
+        <button id="close-area-search-window" class="card-close" type="button" title="Minimize search">x</button>
+      </div>
+      <label class="area-search-label" for="area-search-input">City, state, or country</label>
+      <input id="area-search-input" class="area-search-input" type="text" autocomplete="off" placeholder="Search a place" />
+    </section>
+
+    <section id="search-boundary-window" class="area-window search-boundary-window hidden" aria-label="Custom radius selector">
+      <div class="area-selector-header">
+        <div>
+          <p class="preview-kicker">Custom</p>
+          <h2 id="area-boundary-title">Custom</h2>
+        </div>
+        <button id="close-search-boundary-window" class="card-close" type="button" title="Minimize custom boundary">x</button>
+      </div>
+      <label class="radius-control" for="area-radius-slider">
+        <span>Radius</span>
+        <strong id="area-radius-value">25 miles</strong>
+      </label>
+      <input id="area-radius-slider" class="area-radius-slider" type="range" min="1" max="250" step="1" value="25" />
+    </section>
 
     <section id="stats-strip" class="stats-strip idle" aria-label="Current throw stats">
       <article class="location-site">

@@ -6,6 +6,8 @@ const SEARCH_RADIUS_METERS = 1800;
 const MAX_DETAILS_PER_THROW = 18;
 const THROW_COOLDOWN_MS = 900;
 const HISTORY_STORAGE_KEY = 'dart_business_finder_search_history_v1';
+const DEFAULT_BOUNDARY_RADIUS_MILES = 25;
+const MILES_TO_METERS = 1609.344;
 
 const PLACE_STATUS = {
   NEEDS_WEBSITE: 'needs_website',
@@ -72,10 +74,13 @@ const SOCIAL_OR_LISTING_HOSTS = [
 let map = null;
 let placesService = null;
 let geocoder = null;
+let areaAutocomplete = null;
 let dartMarker = null;
 let winnerMarker = null;
 let connectorLine = null;
 let scanCircle = null;
+let boundaryShape = null;
+let selectedBoundary = null;
 let placeMarkers = [];
 let currentPlaces = [];
 let lastDartPosition = null;
@@ -102,6 +107,7 @@ window.initMap = function () {
 
   placesService = new google.maps.places.PlacesService(map);
   geocoder = new google.maps.Geocoder();
+  initializeAreaSelector();
   searchHistory = loadSearchHistory();
   renderSearchHistory();
   updateControlStates();
@@ -283,7 +289,11 @@ function formatDistance(meters) {
 }
 
 function randomPositionInBounds() {
-  const bounds = map.getBounds();
+  if (selectedBoundary?.type === 'circle') {
+    return randomPositionInCircle(selectedBoundary.center, selectedBoundary.radiusMeters);
+  }
+
+  const bounds = selectedBoundary?.type === 'bounds' ? selectedBoundary.bounds : map.getBounds();
   if (!bounds) return null;
 
   const sw = bounds.getSouthWest();
@@ -298,6 +308,26 @@ function randomPositionInBounds() {
   };
 }
 
+function randomPositionInCircle(center, radiusMeters) {
+  const distance = radiusMeters * Math.sqrt(Math.random());
+  const bearing = Math.random() * Math.PI * 2;
+  const earthRadius = 6371000;
+  const centerLat = center.lat * Math.PI / 180;
+  const centerLng = center.lng * Math.PI / 180;
+  const angularDistance = distance / earthRadius;
+
+  const lat = Math.asin(
+    Math.sin(centerLat) * Math.cos(angularDistance)
+    + Math.cos(centerLat) * Math.sin(angularDistance) * Math.cos(bearing)
+  );
+  const lng = centerLng + Math.atan2(
+    Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(centerLat),
+    Math.cos(angularDistance) - Math.sin(centerLat) * Math.sin(lat)
+  );
+
+  return { lat: lat * 180 / Math.PI, lng: lng * 180 / Math.PI };
+}
+
 function throwDart() {
   const now = Date.now();
   if (now - lastThrowAt < THROW_COOLDOWN_MS) return;
@@ -309,7 +339,8 @@ function throwDart() {
     return;
   }
 
-  resetScreen({ keepToast: true });
+  resetScreen({ keepToast: true, keepBoundary: true });
+  hideSelectionWindows();
   lastDartPosition = position;
   setThrowing(true);
   updateControlStates();
@@ -602,6 +633,193 @@ function renderScanCircle(position) {
   });
 }
 
+function initializeAreaSelector() {
+  const input = document.getElementById('area-search-input');
+  if (!input) return;
+
+  areaAutocomplete = new google.maps.places.Autocomplete(input, {
+    fields: ['formatted_address', 'geometry', 'name', 'types'],
+    types: ['(regions)'],
+  });
+
+  areaAutocomplete.addListener('place_changed', () => {
+    const place = areaAutocomplete.getPlace();
+    applyPlaceBoundary(place);
+  });
+
+  map.addListener('click', event => {
+    if (!event.latLng) return;
+    applyManualBoundary({ lat: event.latLng.lat(), lng: event.latLng.lng() });
+    showSearchBoundaryWindow();
+  });
+}
+
+function applyPlaceBoundary(place) {
+  const bounds = place?.geometry?.viewport;
+  const location = place?.geometry?.location;
+  if (!bounds && !location) {
+    setToast('Choose a city, state, or country from the search list.');
+    return;
+  }
+
+  clearBoundaryShape();
+
+  const label = place.name || place.formatted_address || 'Selected area';
+  if (bounds) {
+    selectedBoundary = { type: 'bounds', bounds, label };
+    boundaryShape = new google.maps.Rectangle({
+      bounds,
+      map,
+      clickable: false,
+      strokeColor: '#0f766e',
+      strokeOpacity: 0.72,
+      strokeWeight: 2,
+      fillColor: '#14b8a6',
+      fillOpacity: 0.13,
+      zIndex: 2,
+    });
+    map.fitBounds(bounds, { top: 150, right: 80, bottom: 120, left: 80 });
+  } else {
+    applyManualBoundary({ lat: location.lat(), lng: location.lng() }, label);
+    return;
+  }
+
+  syncAreaSelectorUi();
+  updateControlStates();
+  hideSearchBoundaryWindow();
+  setToast(`Darts will now land inside ${label}.`);
+}
+
+function applyManualBoundary(center, label = 'Custom') {
+  clearBoundaryShape();
+  selectedBoundary = {
+    type: 'circle',
+    center,
+    radiusMeters: getBoundaryRadiusMeters(),
+    label,
+  };
+
+  boundaryShape = new google.maps.Circle({
+    center,
+    radius: selectedBoundary.radiusMeters,
+    map,
+    clickable: false,
+    strokeColor: '#7c3aed',
+    strokeOpacity: 0.72,
+    strokeWeight: 2,
+    fillColor: '#8b5cf6',
+    fillOpacity: 0.16,
+    zIndex: 2,
+  });
+
+  map.fitBounds(boundaryShape.getBounds(), { top: 150, right: 80, bottom: 120, left: 80 });
+  syncAreaSelectorUi();
+  updateControlStates();
+  setToast(`Custom boundary set to ${formatMiles(getBoundaryRadiusMiles())}.`);
+}
+
+function updateManualBoundaryRadius() {
+  if (selectedBoundary?.type !== 'circle' || !boundaryShape) return;
+  selectedBoundary.radiusMeters = getBoundaryRadiusMeters();
+  boundaryShape.setRadius(selectedBoundary.radiusMeters);
+}
+
+function clearSelectedBoundary(options = {}) {
+  clearBoundaryShape();
+  selectedBoundary = null;
+  const input = document.getElementById('area-search-input');
+  if (input) input.value = '';
+  hideSearchBoundaryWindow();
+  syncAreaSelectorUi();
+  updateControlStates();
+  if (!options.quiet) setToast('Custom boundary cleared. Darts use the visible map again.');
+}
+
+function hideAreaSelector() {
+  const searchWindow = document.getElementById('area-search-window');
+  searchWindow.classList.add('hidden');
+  syncSelectButtonExpanded();
+}
+
+function showAreaSelector(options = {}) {
+  const searchWindow = document.getElementById('area-search-window');
+  hideSearchBoundaryWindow();
+  searchWindow.classList.remove('hidden');
+  syncSelectButtonExpanded();
+  if (options.focusSearch !== false) document.getElementById('area-search-input').focus();
+}
+
+function hideSearchBoundaryWindow() {
+  document.getElementById('search-boundary-window').classList.add('hidden');
+  syncSelectButtonExpanded();
+}
+
+function showSearchBoundaryWindow() {
+  hideAreaSelector();
+  document.getElementById('search-boundary-window').classList.remove('hidden');
+  syncSelectButtonExpanded();
+}
+
+function hideSelectionWindows() {
+  document.getElementById('area-search-window').classList.add('hidden');
+  document.getElementById('search-boundary-window').classList.add('hidden');
+  syncSelectButtonExpanded();
+}
+
+function syncSelectButtonExpanded() {
+  const searchWindow = document.getElementById('area-search-window');
+  const customWindow = document.getElementById('search-boundary-window');
+  const isOpen = !searchWindow.classList.contains('hidden') || !customWindow.classList.contains('hidden');
+  document.getElementById('select-area-btn').setAttribute('aria-expanded', String(isOpen));
+}
+
+function clearBoundaryShape() {
+  if (boundaryShape) boundaryShape.setMap(null);
+  boundaryShape = null;
+}
+
+function getBoundaryRadiusMiles() {
+  return Number(document.getElementById('area-radius-slider')?.value) || DEFAULT_BOUNDARY_RADIUS_MILES;
+}
+
+function getBoundaryRadiusMeters() {
+  return getBoundaryRadiusMiles() * MILES_TO_METERS;
+}
+
+function formatMiles(miles) {
+  return `${Math.round(miles).toLocaleString()} miles`;
+}
+
+function syncAreaSelectorUi() {
+  const title = document.getElementById('area-boundary-title');
+  const areaControl = document.getElementById('area-control');
+  const selectButton = document.getElementById('select-area-btn');
+  const clearButton = document.getElementById('clear-selected-area-btn');
+  const radiusValue = document.getElementById('area-radius-value');
+  const searchBoundaryWindow = document.getElementById('search-boundary-window');
+  const hasBoundary = Boolean(selectedBoundary);
+  const hasSearchBoundary = selectedBoundary?.type === 'circle';
+
+  if (title) title.textContent = selectedBoundary?.label || 'Whole visible map';
+  if (selectButton) selectButton.textContent = selectedBoundary?.label || 'Select Area';
+  if (areaControl) areaControl.classList.toggle('is-selected', hasBoundary);
+  if (clearButton) clearButton.classList.toggle('hidden', !hasBoundary);
+  if (radiusValue) radiusValue.textContent = formatMiles(getBoundaryRadiusMiles());
+  searchBoundaryWindow?.classList.toggle('has-boundary', hasSearchBoundary);
+}
+
+function pulseBoundaryShape() {
+  if (!boundaryShape) return;
+
+  if (boundaryShape instanceof google.maps.Circle || boundaryShape instanceof google.maps.Rectangle) {
+    const currentOpacity = boundaryShape.get('fillOpacity') || 0.14;
+    boundaryShape.setOptions({ fillOpacity: Math.min(currentOpacity + 0.13, 0.32), strokeWeight: 3 });
+    setTimeout(() => {
+      if (boundaryShape) boundaryShape.setOptions({ fillOpacity: currentOpacity, strokeWeight: 2 });
+    }, 360);
+  }
+}
+
 function saveCurrentSearch(winner) {
   if (!lastDartPosition || !currentPlaces.length) return;
 
@@ -661,7 +879,7 @@ function renderSearchHistory() {
 }
 
 function hasActiveSearch() {
-  return Boolean(lastDartPosition || currentPlaces.length || dartMarker || winnerMarker || scanCircle || connectorLine || placeMarkers.length);
+  return Boolean(lastDartPosition || currentPlaces.length || dartMarker || winnerMarker || scanCircle || connectorLine || placeMarkers.length || selectedBoundary);
 }
 
 function updateControlStates() {
@@ -945,6 +1163,8 @@ function resetScreen(options = {}) {
   document.body.classList.remove('impact-shake');
   updateControlStates();
 
+  if (!options.keepBoundary) clearSelectedBoundary({ quiet: true });
+
   if (!options.keepToast) setToast('Screen cleared. Throw again when ready.');
 }
 
@@ -1018,6 +1238,33 @@ function dotIcon(color, scale) {
 
 document.getElementById('throw-btn').addEventListener('click', throwDart);
 document.getElementById('reset-btn').addEventListener('click', () => resetScreen());
+document.getElementById('select-area-btn').addEventListener('click', () => {
+  const searchWindow = document.getElementById('area-search-window');
+  const customWindow = document.getElementById('search-boundary-window');
+
+  if (selectedBoundary?.type === 'circle') {
+    if (customWindow.classList.contains('hidden')) {
+      showSearchBoundaryWindow();
+    } else {
+      hideSearchBoundaryWindow();
+    }
+  } else if (searchWindow.classList.contains('hidden')) {
+    showAreaSelector();
+  } else {
+    hideAreaSelector();
+  }
+});
+document.getElementById('close-area-search-window').addEventListener('click', hideAreaSelector);
+document.getElementById('close-search-boundary-window').addEventListener('click', hideSearchBoundaryWindow);
+document.getElementById('clear-selected-area-btn').addEventListener('click', event => {
+  event.stopPropagation();
+  clearSelectedBoundary();
+});
+document.getElementById('area-radius-slider').addEventListener('input', () => {
+  updateManualBoundaryRadius();
+  syncAreaSelectorUi();
+});
+document.getElementById('area-search-input').addEventListener('pointerenter', pulseBoundaryShape);
 document.getElementById('history-btn').addEventListener('click', () => {
   if (!searchHistory.length) return;
   renderSearchHistory();
