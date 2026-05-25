@@ -831,8 +831,8 @@ h1 {
   background: #0f766e;
 }
 
-.winner-card > .google-link,
-.winner-place-body > .google-link {
+.winner-card>.google-link,
+.winner-place-body>.google-link {
   width: 100%;
   background: #2563eb;
 }
