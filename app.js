@@ -4,7 +4,8 @@ const DEFAULT_CENTER = { lat: 18.4861, lng: -69.9312 };
 const DEFAULT_ZOOM = 13;
 const SEARCH_RADIUS_METERS = 1800;
 const MAX_DETAILS_PER_THROW = 18;
-const MAX_AUTO_THROW_ATTEMPTS = 8;
+const MAX_AUTO_THROW_ATTEMPTS = 40;
+const MIN_GOOGLE_REVIEWS_FOR_WINNER = 5;
 const THROW_COOLDOWN_MS = 900;
 const HISTORY_STORAGE_KEY = 'dart_business_finder_search_history_v1';
 const AREA_SELECTION_HISTORY_KEY = 'dart_business_finder_area_selection_history_v1';
@@ -72,6 +73,29 @@ const SOCIAL_OR_LISTING_HOSTS = [
   'doordash.com', 'grubhub.com', 'pedidosya.com', 'glovoapp.com', 'tripadvisor.com',
   'booking.com', 'airbnb.com', 'expedia.com', 'yelp.com', 'opentable.com',
   'mercadolibre.com', 'shopify.com', 'business.site', 'sites.google.com',
+];
+
+const DR_BUSINESS_CENTERS = [
+  { lat: 18.4861, lng: -69.9312, radiusMeters: 12500 },
+  { lat: 18.4740, lng: -69.8840, radiusMeters: 9000 },
+  { lat: 18.7357, lng: -70.1627, radiusMeters: 12000 },
+  { lat: 19.4517, lng: -70.6970, radiusMeters: 11000 },
+  { lat: 19.7808, lng: -70.6871, radiusMeters: 9000 },
+  { lat: 18.4273, lng: -68.9728, radiusMeters: 8000 },
+  { lat: 18.5601, lng: -68.3725, radiusMeters: 9000 },
+  { lat: 18.6150, lng: -68.7078, radiusMeters: 7000 },
+  { lat: 18.4539, lng: -69.3086, radiusMeters: 8000 },
+  { lat: 18.4167, lng: -70.1094, radiusMeters: 8000 },
+  { lat: 19.3000, lng: -70.2500, radiusMeters: 7500 },
+  { lat: 19.2082, lng: -69.3320, radiusMeters: 7000 },
+  { lat: 19.3776, lng: -70.4176, radiusMeters: 7000 },
+  { lat: 18.9369, lng: -70.4092, radiusMeters: 7000 },
+  { lat: 19.3832, lng: -69.8474, radiusMeters: 7000 },
+  { lat: 18.5818, lng: -68.4043, radiusMeters: 7000 },
+  { lat: 18.2085, lng: -71.1008, radiusMeters: 7000 },
+  { lat: 18.2796, lng: -70.3318, radiusMeters: 6500 },
+  { lat: 18.4500, lng: -70.7349, radiusMeters: 6500 },
+  { lat: 19.5519, lng: -71.0781, radiusMeters: 6500 },
 ];
 
 let map = null;
@@ -335,6 +359,39 @@ function randomPositionInBounds() {
   };
 }
 
+function randomHiddenThrowPosition(attempt) {
+  const businessCenterPosition = randomPositionNearBusinessCenter(attempt);
+  return businessCenterPosition || randomPositionInBounds();
+}
+
+function randomPositionNearBusinessCenter(attempt) {
+  if (attempt % 3 === 1) return null;
+
+  const centers = DR_BUSINESS_CENTERS.filter(center => isPositionInsideSelectedArea(center));
+  if (!centers.length) return null;
+
+  for (let sample = 0; sample < 8; sample += 1) {
+    const center = centers[Math.floor(Math.random() * centers.length)];
+    const position = randomPositionInCircle(center, center.radiusMeters);
+    if (isPositionInsideSelectedArea(position)) return position;
+  }
+
+  return null;
+}
+
+function isPositionInsideSelectedArea(position) {
+  if (!position) return false;
+
+  if (selectedBoundary?.type === 'circle') {
+    return distanceMeters(selectedBoundary.center, position) <= selectedBoundary.radiusMeters;
+  }
+
+  const bounds = selectedBoundary?.type === 'bounds' ? selectedBoundary.bounds : map.getBounds();
+  if (!bounds) return false;
+
+  return bounds.contains(new google.maps.LatLng(position.lat, position.lng));
+}
+
 function randomPositionInCircle(center, radiusMeters) {
   const distance = radiusMeters * Math.sqrt(Math.random());
   const bearing = Math.random() * Math.PI * 2;
@@ -384,7 +441,7 @@ function throwDart() {
 
 async function findQualifiedThrow() {
   for (let attempt = 1; attempt <= MAX_AUTO_THROW_ATTEMPTS; attempt += 1) {
-    const position = randomPositionInBounds();
+    const position = randomHiddenThrowPosition(attempt);
     if (!position) return null;
 
     const result = await scanCandidatePosition(position);
@@ -524,7 +581,11 @@ function dedupePlaces(places) {
 }
 
 function pickWinner(places) {
-  return places.find(place => place.isLikelyBusiness && place.status === PLACE_STATUS.NEEDS_WEBSITE) || null;
+  return places.find(place => (
+    place.isLikelyBusiness
+    && place.status === PLACE_STATUS.NEEDS_WEBSITE
+    && place.reviewCount >= MIN_GOOGLE_REVIEWS_FOR_WINNER
+  )) || null;
 }
 
 function renderPlaceDots(places) {
