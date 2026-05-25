@@ -93,82 +93,46 @@
 
     <section id="winner-card" class="winner-card draggable-window hidden" aria-live="polite">
       <button id="close-winner-card" class="card-close" type="button" title="Close winner card">x</button>
-      <button id="winner-stats-toggle" class="card-toggle" type="button" aria-controls="winner-details"
-        aria-expanded="false" title="Toggle winner stats">
-        <span class="chevron">v</span>
-      </button>
-      <div class="window-drag-handle" data-drag-handle>
-        <p id="winner-kicker" class="winner-kicker">Winner Revealed</p>
-        <h2 id="winner-name">Throw a dart to find a business</h2>
-      </div>
-      <dl id="winner-details" class="winner-details">
-        <div>
-          <dt>Category</dt>
-          <dd id="winner-category">-</dd>
+      <div class="winner-place-body">
+        <div class="window-drag-handle winner-heading" data-drag-handle>
+          <p id="winner-kicker" class="winner-kicker">Winner Revealed</p>
+          <h2 id="winner-name">Throw a dart to find a business</h2>
+          <div class="winner-meta-row">
+            <span id="winner-rating" class="winner-rating-pill">No rating yet</span>
+            <span id="winner-category">-</span>
+          </div>
         </div>
-        <div>
-          <dt>Distance</dt>
-          <dd id="winner-distance">-</dd>
+        <p id="winner-address" class="winner-address">-</p>
+        <div class="winner-actions">
+          <a id="winner-phone-link" class="action-link phone-link disabled" href="#">No phone</a>
+          <a id="winner-website-link" class="action-link website-link disabled" href="#" target="_blank"
+            rel="noreferrer">No website link</a>
         </div>
-        <div>
-          <dt>Rating</dt>
-          <dd id="winner-rating">-</dd>
-        </div>
-        <div>
-          <dt>Phone</dt>
-          <dd id="winner-phone">-</dd>
-        </div>
-        <div>
-          <dt>Business Status</dt>
-          <dd id="winner-business-status">-</dd>
-        </div>
-        <div>
-          <dt>Google Reviews</dt>
-          <dd id="winner-reviews">-</dd>
-        </div>
-        <div class="wide-detail">
-          <dt>Address</dt>
-          <dd id="winner-address">-</dd>
-        </div>
-      </dl>
-      <div class="winner-actions">
         <a id="winner-google-link" class="action-link google-link" href="#" target="_blank" rel="noreferrer">Open in
           Google Maps</a>
-        <a id="winner-website-link" class="action-link website-link disabled" href="#" target="_blank"
-          rel="noreferrer">No website link</a>
       </div>
     </section>
 
     <section id="preview-card" class="preview-card draggable-window hidden" aria-live="polite">
       <button id="close-preview-card" class="card-close" type="button" title="Close preview card">x</button>
-      <div class="window-drag-handle" data-drag-handle>
-        <p class="preview-kicker">Place Preview</p>
-        <h2 id="preview-name">Select a dot</h2>
-      </div>
-      <div id="preview-badge" class="website-badge unknown">Needs a closer look</div>
-      <dl class="preview-details">
-        <div>
-          <dt>Category</dt>
-          <dd id="preview-category">-</dd>
+      <div class="preview-place-body">
+        <div class="window-drag-handle preview-heading" data-drag-handle>
+          <p class="preview-kicker">Place Preview</p>
+          <h2 id="preview-name">Select a dot</h2>
+          <div class="preview-meta-row">
+            <span id="preview-rating">No rating yet</span>
+            <span id="preview-category">-</span>
+            <span id="preview-distance">-</span>
+          </div>
         </div>
-        <div>
-          <dt>Distance</dt>
-          <dd id="preview-distance">-</dd>
+        <div id="preview-badge" class="website-badge unknown">Needs a closer look</div>
+        <p id="preview-address" class="preview-address">-</p>
+        <div class="winner-actions">
+          <a id="preview-google-link" class="action-link google-link" href="#" target="_blank" rel="noreferrer">Open in
+            Google Maps</a>
+          <a id="preview-website-link" class="action-link website-link disabled" href="#" target="_blank"
+            rel="noreferrer">No website link</a>
         </div>
-        <div>
-          <dt>Rating</dt>
-          <dd id="preview-rating">-</dd>
-        </div>
-        <div class="wide-detail">
-          <dt>Address</dt>
-          <dd id="preview-address">-</dd>
-        </div>
-      </dl>
-      <div class="winner-actions">
-        <a id="preview-google-link" class="action-link google-link" href="#" target="_blank" rel="noreferrer">Open in
-          Google Maps</a>
-        <a id="preview-website-link" class="action-link website-link disabled" href="#" target="_blank"
-          rel="noreferrer">No website link</a>
       </div>
     </section>
 

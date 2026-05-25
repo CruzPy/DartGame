@@ -109,6 +109,7 @@ let scanCircle = null;
 let boundaryShape = null;
 let selectedBoundary = null;
 let placeMarkers = [];
+let previewMarker = null;
 let currentPlaces = [];
 let lastDartPosition = null;
 let lastThrowAt = 0;
@@ -116,7 +117,6 @@ let searchHistory = [];
 let areaSelectionHistory = [];
 let floatingWindowZ = 50;
 let currentLocationInfo = { town: '-', city: 'Town / City', label: 'Unknown area' };
-let winnerStatsExpanded = false;
 
 window.initMap = function () {
   map = new google.maps.Map(document.getElementById('map'), {
@@ -584,6 +584,7 @@ function pickWinner(places) {
   return places.find(place => (
     place.isLikelyBusiness
     && place.status === PLACE_STATUS.NEEDS_WEBSITE
+    && !place.hasRealWebsite
     && place.reviewCount >= MIN_GOOGLE_REVIEWS_FOR_WINNER
   )) || null;
 }
@@ -601,7 +602,7 @@ function renderPlaceDots(places) {
       zIndex: place.status === PLACE_STATUS.NEEDS_WEBSITE ? 14 : 10,
     });
 
-    marker.addListener('click', () => showPreviewCard(place));
+    marker.addListener('click', () => showPreviewCard(place, marker));
     placeMarkers.push(marker);
     setTimeout(() => marker.setOpacity(0.92), 70 * index);
   });
@@ -661,42 +662,49 @@ function revealWinner(dartPosition, place, options = {}) {
 }
 
 function renderWinnerCard(place) {
-  setText('winner-kicker', 'Winner Revealed');
+  setText('winner-kicker', 'Selected Winner');
   setText('winner-name', place.name);
   setText('winner-category', titleCase(place.category));
-  setText('winner-distance', formatDistance(place.distanceMeters));
   setText('winner-rating', formatRating(place));
-  setText('winner-phone', place.phone || 'Not listed');
-  setText('winner-business-status', titleCase(place.businessStatus.replace(/_/g, ' ').toLowerCase()));
-  setText('winner-reviews', place.reviewCount ? place.reviewCount.toLocaleString() : 'No reviews listed');
   setText('winner-address', place.address);
+  setPhoneActionLink('winner-phone-link', place.phone);
   setActionLink('winner-google-link', place.googleMapsUrl, 'Open in Google Maps', false);
-  setActionLink('winner-website-link', place.websiteUrl, place.websiteUrl ? 'Open Website' : 'No website link', !place.websiteUrl);
+  setActionLink('winner-website-link', place.websiteUrl, getWebsiteLinkLabel(place.websiteUrl), !place.websiteUrl);
 
   const card = document.getElementById('winner-card');
   bringWindowToFront(card);
-  setWinnerStatsExpanded(!isMobileViewport());
   card.classList.remove('hidden', 'revealed');
   void card.offsetWidth;
   card.classList.add('revealed');
 }
 
-function showPreviewCard(place) {
+function setPhoneActionLink(id, phone) {
+  const link = document.getElementById(id);
+  if (!link) return;
+
+  const normalizedPhone = String(phone || '').trim();
+  link.textContent = normalizedPhone || 'No phone';
+  link.href = normalizedPhone ? `tel:${normalizedPhone.replace(/[^+\d]/g, '')}` : '#';
+  link.classList.toggle('disabled', !normalizedPhone);
+}
+
+function showPreviewCard(place, marker = null) {
   if (!place) return;
 
+  highlightPreviewMarker(marker, place);
   setText('preview-name', place.name);
   setText('preview-category', titleCase(place.category));
   setText('preview-distance', formatDistance(place.distanceMeters));
   setText('preview-rating', formatRating(place));
   setText('preview-address', place.address);
   setActionLink('preview-google-link', place.googleMapsUrl, 'Open in Google Maps', false);
-  setActionLink('preview-website-link', place.websiteUrl, place.websiteUrl ? 'Open Website' : 'No website link', !place.websiteUrl);
+  setActionLink('preview-website-link', place.websiteUrl, getWebsiteLinkLabel(place.websiteUrl), !place.websiteUrl);
 
   const badge = document.getElementById('preview-badge');
   badge.className = 'website-badge';
   if (place.status === PLACE_STATUS.HAS_WEBSITE) {
     badge.classList.add('has');
-    badge.textContent = 'Real dedicated website found';
+    badge.textContent = place.statusLabel || 'Website link found';
   } else if (place.status === PLACE_STATUS.NEEDS_WEBSITE) {
     badge.classList.add('needs');
     badge.textContent = 'No real dedicated website found';
@@ -713,6 +721,21 @@ function showPreviewCard(place) {
   setToast('Preview opened. Winner stays unchanged.');
 }
 
+function highlightPreviewMarker(marker, place) {
+  if (previewMarker && previewMarker !== marker) {
+    const previousPlace = previewMarker.placeData;
+    previewMarker.setIcon(dotIcon(STATUS_COLORS[previousPlace?.status] || STATUS_COLORS.unsure, 8));
+    previewMarker.setZIndex(previousPlace?.status === PLACE_STATUS.NEEDS_WEBSITE ? 14 : 10);
+  }
+
+  previewMarker = marker;
+  if (!previewMarker) return;
+
+  previewMarker.placeData = place;
+  previewMarker.setIcon(dotIcon(STATUS_COLORS[place.status], 12));
+  previewMarker.setZIndex(36);
+}
+
 function hideWinnerCard() {
   const card = document.getElementById('winner-card');
   card.classList.remove('revealed');
@@ -723,6 +746,16 @@ function hidePreviewCard() {
   const card = document.getElementById('preview-card');
   card.classList.remove('revealed');
   card.classList.add('hidden');
+  clearPreviewMarkerHighlight();
+}
+
+function clearPreviewMarkerHighlight() {
+  if (!previewMarker) return;
+
+  const place = previewMarker.placeData;
+  previewMarker.setIcon(dotIcon(STATUS_COLORS[place?.status] || STATUS_COLORS.unsure, 8));
+  previewMarker.setZIndex(place?.status === PLACE_STATUS.NEEDS_WEBSITE ? 14 : 10);
+  previewMarker = null;
 }
 
 function renderScanCircle(position) {
@@ -1287,6 +1320,22 @@ function setActionLink(id, href, label, disabled) {
   link.classList.toggle('disabled', disabled);
 }
 
+function getWebsiteLinkLabel(url) {
+  if (!url) return 'No website link';
+
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    if (host === 'facebook.com' || host.endsWith('.facebook.com') || host === 'fb.com' || host.endsWith('.fb.com')) return 'Open Facebook Page';
+    if (host === 'instagram.com' || host.endsWith('.instagram.com')) return 'Open Instagram';
+    if (host === 'wa.me' || host.endsWith('.wa.me') || host === 'whatsapp.com' || host.endsWith('.whatsapp.com')) return 'Open WhatsApp';
+    if (SOCIAL_OR_LISTING_HOSTS.some(blocked => host === blocked || host.endsWith(`.${blocked}`))) return 'Open Listing Link';
+  } catch (_error) {
+    return 'Open Website Link';
+  }
+
+  return 'Open Website';
+}
+
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
 }
@@ -1336,21 +1385,6 @@ function focusThrow(position, places) {
 
 function isMobileViewport() {
   return window.matchMedia('(max-width: 760px)').matches;
-}
-
-function setWinnerStatsExpanded(expanded) {
-  winnerStatsExpanded = Boolean(expanded);
-  syncWinnerStatsVisibility();
-}
-
-function syncWinnerStatsVisibility() {
-  const details = document.getElementById('winner-details');
-  const toggle = document.getElementById('winner-stats-toggle');
-  if (!details || !toggle) return;
-
-  const expanded = isMobileViewport() ? winnerStatsExpanded : true;
-  details.classList.toggle('is-collapsed', !expanded);
-  toggle.setAttribute('aria-expanded', String(expanded));
 }
 
 function startRadar(position) {
@@ -1455,6 +1489,7 @@ function resetScreen(options = {}) {
 }
 
 function clearPlaceMarkers() {
+  previewMarker = null;
   placeMarkers.forEach(marker => marker.setMap(null));
   placeMarkers = [];
 }
@@ -1463,15 +1498,11 @@ function resetWinnerCardContent() {
   setText('winner-kicker', 'Winner Revealed');
   setText('winner-name', 'Throw a dart to find a business');
   setText('winner-category', '-');
-  setText('winner-distance', '-');
   setText('winner-rating', '-');
-  setText('winner-phone', '-');
-  setText('winner-business-status', '-');
-  setText('winner-reviews', '-');
   setText('winner-address', '-');
+  setPhoneActionLink('winner-phone-link', '');
   setActionLink('winner-google-link', '#', 'Open in Google Maps', true);
   setActionLink('winner-website-link', '#', 'No website link', true);
-  setWinnerStatsExpanded(!isMobileViewport());
 }
 
 function setToast(message) {
@@ -1587,17 +1618,11 @@ document.querySelectorAll('.card-close').forEach(button => {
 document.getElementById('close-history-panel').addEventListener('click', hideHistoryPanel);
 document.getElementById('close-winner-card').addEventListener('click', hideWinnerCard);
 document.getElementById('close-preview-card').addEventListener('click', hidePreviewCard);
-document.getElementById('winner-stats-toggle').addEventListener('click', event => {
-  event.stopPropagation();
-  setWinnerStatsExpanded(!winnerStatsExpanded);
-});
 document.getElementById('history-list').addEventListener('click', event => {
   const button = event.target.closest('button[data-history-id]');
   if (button) restoreSearch(button.dataset.historyId);
 });
 initializeDraggableWindows();
-window.addEventListener('resize', syncWinnerStatsVisibility);
-syncWinnerStatsVisibility();
 
 (function bootstrap() {
   if (typeof GOOGLE_MAPS_API_KEY === 'undefined' || GOOGLE_MAPS_API_KEY === 'YOUR_API_KEY_HERE') {
