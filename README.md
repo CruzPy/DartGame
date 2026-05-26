@@ -30,6 +30,8 @@ The app is built as a static frontend with plain HTML, CSS, and JavaScript. It i
 
 ## Website Status Rules
 
+The app now requires a Google Places phone number before a place can qualify as a prospect or winner. Places without a phone are marked as needing a closer look instead of being selected, which helps avoid stale listings, private locations, and weak Google profiles.
+
 The app only treats a place as having a real dedicated website when Google returns a believable owned domain.
 
 These count as real websites:
@@ -51,6 +53,20 @@ These do not count as real dedicated websites:
 - Google Maps links
 - Google Business Profile links
 - Delivery, marketplace, travel, or listing pages
+
+## Best Categories To Target
+
+For fresher, easier-to-contact leads, focus throws around dense commercial areas that contain these categories:
+
+- Beauty and personal care: salons, barber shops, spas, nail salons
+- Auto and motorcycle services: repair shops, tire shops, car washes, detailing shops
+- Home and trade services: hardware stores, plumbers, electricians, painters, roofers
+- Health clinics: dentists, doctors, pharmacies, physical therapy, veterinary clinics
+- Food businesses: restaurants, bakeries, cafes, takeout counters, bars
+- Fitness and specialty retail: gyms, pet stores, florists, jewelry, furniture, electronics, clothing, shoes
+- Local essentials: supermarkets, convenience stores, colmados, mini markets
+
+Lower-priority categories are banks, malls, big chains, hotels, tourist attractions, schools, government offices, parks, churches, and residential/private places. Those are more likely to already have websites, be non-prospects, or produce noisy results.
 
 ## Setup
 

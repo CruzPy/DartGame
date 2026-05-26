@@ -58,6 +58,17 @@ const NON_BUSINESS_NAME_PATTERNS = [
 
 const MIN_REVIEW_COUNT_FOR_PROSPECT = 8;
 
+const FOCUSED_PROSPECT_TYPES = [
+  'beauty_salon', 'hair_care', 'barber_shop', 'spa', 'nail_salon',
+  'car_repair', 'car_wash', 'motorcycle_repair_shop', 'tire_shop',
+  'hardware_store', 'plumber', 'electrician', 'painter', 'roofing_contractor',
+  'dentist', 'doctor', 'pharmacy', 'physiotherapist', 'veterinary_care',
+  'restaurant', 'bakery', 'cafe', 'meal_takeaway', 'bar',
+  'gym', 'pet_store', 'florist', 'jewelry_store', 'furniture_store',
+  'home_goods_store', 'clothing_store', 'shoe_store', 'electronics_store',
+  'grocery_or_supermarket', 'supermarket', 'convenience_store',
+];
+
 const GEOGRAPHIC_PLACE_TYPES = new Set([
   'administrative_area_level_1', 'administrative_area_level_2', 'administrative_area_level_3',
   'administrative_area_level_4', 'administrative_area_level_5', 'colloquial_area', 'country',
@@ -194,14 +205,23 @@ function isOperationalStatus(place) {
   return String(place.business_status || '').toUpperCase() === 'OPERATIONAL';
 }
 
+function hasPhoneNumber(place) {
+  return Boolean(String(place.international_phone_number || place.formatted_phone_number || place.phone || '').trim());
+}
+
+function hasFocusedProspectType(place) {
+  const types = place.types || [];
+  return types.some(type => FOCUSED_PROSPECT_TYPES.includes(type));
+}
+
 function hasStrictBusinessSignals(place) {
   const types = place.types || [];
   const reviewCount = Number(place.user_ratings_total) || 0;
-  const hasContactSignal = Boolean(place.formatted_phone_number || place.international_phone_number || place.website);
   const hasCommercialType = types.some(type => COMMERCIAL_TYPES.has(type));
 
   if (!hasCommercialType) return false;
-  return reviewCount >= MIN_REVIEW_COUNT_FOR_PROSPECT || hasContactSignal;
+  if (!hasPhoneNumber(place)) return false;
+  return reviewCount >= MIN_REVIEW_COUNT_FOR_PROSPECT || Boolean(place.website);
 }
 
 function hasNonBusinessSignals(place) {
@@ -240,7 +260,7 @@ function classifyPlace(place) {
       status: PLACE_STATUS.UNSURE,
       hasRealWebsite,
       isLikelyBusiness: false,
-      label: 'Filtered out: weak business proof',
+      label: hasPhoneNumber(place) ? 'Filtered out: weak business proof' : 'Filtered out: no phone number found',
     };
   }
 
@@ -581,12 +601,15 @@ function dedupePlaces(places) {
 }
 
 function pickWinner(places) {
-  return places.find(place => (
+  const eligiblePlaces = places.filter(place => (
     place.isLikelyBusiness
     && place.status === PLACE_STATUS.NEEDS_WEBSITE
     && !place.hasRealWebsite
+    && hasPhoneNumber(place)
     && place.reviewCount >= MIN_GOOGLE_REVIEWS_FOR_WINNER
-  )) || null;
+  ));
+
+  return eligiblePlaces.find(hasFocusedProspectType) || eligiblePlaces[0] || null;
 }
 
 function renderPlaceDots(places) {
