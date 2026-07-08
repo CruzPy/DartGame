@@ -694,11 +694,54 @@ function renderWinnerCard(place) {
   setActionLink('winner-google-link', place.googleMapsUrl, 'Open in Google Maps', false);
   setActionLink('winner-website-link', place.websiteUrl, getWebsiteLinkLabel(place.websiteUrl), !place.websiteUrl);
 
+  const buildBtn = document.getElementById('winner-build-btn');
+  if (buildBtn) buildBtn.onclick = () => copyBuilderPayload(place, buildBtn);
+
   const card = document.getElementById('winner-card');
   bringWindowToFront(card);
   card.classList.remove('hidden', 'revealed');
   void card.offsetWidth;
   card.classList.add('revealed');
+}
+
+// --- Handoff to the DR site builder -----------------------------------------
+// Copies the winner as a clean JSON payload. Paste it into the dr-site-builder
+// skill (Claude Code) or the "DR Business Site Builder" agent to start a build.
+function buildBuilderPayload(place) {
+  return {
+    source: 'dart-business-finder',
+    capturedAt: new Date().toISOString(),
+    name: place.name || '',
+    category: place.category || '',
+    googleTypes: Array.isArray(place.types) ? place.types : [],
+    phone: place.phone || '',
+    address: place.address || '',
+    googleMapsUrl: place.googleMapsUrl || '',
+    lat: place.latitude ?? null,
+    lng: place.longitude ?? null,
+    rating: place.rating ?? null,
+    reviewCount: place.reviewCount || 0,
+    hasRealWebsite: Boolean(place.hasRealWebsite),
+    websiteUrl: place.websiteUrl || '',
+  };
+}
+
+function copyBuilderPayload(place, btn) {
+  const payload = JSON.stringify(buildBuilderPayload(place), null, 2);
+  const flash = (msg) => {
+    if (!btn) return;
+    const original = btn.dataset.label || (btn.dataset.label = btn.textContent);
+    btn.textContent = msg;
+    setTimeout(() => { btn.textContent = original; }, 2800);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(payload)
+      .then(() => flash('✓ Copiado — pégalo en el builder'))
+      .catch(() => { console.log(payload); flash('Copia manual: ver consola'); });
+  } else {
+    console.log(payload);
+    flash('Copia manual: ver consola');
+  }
 }
 
 function setPhoneActionLink(id, phone) {

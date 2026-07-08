@@ -843,6 +843,21 @@ h1 {
   pointer-events: none;
 }
 
+.winner-card>.build-link,
+.winner-place-body>.build-link {
+  width: 100%;
+  margin-top: 8px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  background: #25D366;
+  box-shadow: 0 6px 18px rgba(37, 211, 102, 0.45);
+}
+
+.build-link:hover {
+  background: #1da851;
+}
+
 #confetti-layer {
   position: fixed;
   inset: 0;
