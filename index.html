@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dart Business Finder</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="builder.css" />
 </head>
 
 <body>
@@ -36,6 +37,7 @@
         </div>
         <button id="history-btn" class="ghost-btn" type="button">History</button>
         <button id="reset-btn" class="ghost-btn" type="button">Reset</button>
+        <button id="settings-btn" class="ghost-btn" type="button" title="Configuración del builder">⚙</button>
       </div>
     </header>
 
@@ -111,7 +113,7 @@
         <a id="winner-google-link" class="action-link google-link" href="#" target="_blank" rel="noreferrer">Open in
           Google Maps</a>
         <button id="winner-build-btn" class="action-link build-link" type="button"
-          title="Copy this business as a handoff payload for the website builder">🌐 Hacer Página Web</button>
+          title="Abrir el generador de sitios web (también permite copiar el payload manual)">🌐 Hacer Página Web</button>
       </div>
     </section>
 
@@ -163,9 +165,75 @@
     </button>
 
     <div id="status-toast" class="status-toast">Move around the Dominican Republic, then throw.</div>
+
+    <aside id="chat-panel" class="chat-panel" aria-label="Generador de sitios web" hidden>
+      <header class="chat-header">
+        <div class="chat-title-block">
+          <p class="chat-kicker">Website Builder</p>
+          <h2 id="chat-business-name">Sin negocio</h2>
+          <div class="chat-status-row">
+            <span id="chat-state-pill" class="chat-pill">Listo</span>
+            <span id="chat-model-pill" class="chat-pill">Opus</span>
+            <span id="chat-elapsed" class="chat-pill" hidden>00:00</span>
+            <span id="chat-cost" class="chat-pill" hidden>$0.00</span>
+            <span id="chat-spinner" class="chat-spinner" hidden></span>
+          </div>
+        </div>
+        <div class="chat-header-actions">
+          <button id="chat-builds-btn" class="chat-icon-btn" type="button" title="Builds anteriores">↻</button>
+          <button id="chat-settings-btn" class="chat-icon-btn" type="button" title="Configuración">⚙</button>
+          <button id="chat-close-btn" class="chat-icon-btn" type="button" title="Cerrar">✕</button>
+        </div>
+        <div id="chat-builds-menu" class="chat-builds-menu" hidden></div>
+      </header>
+
+      <div id="chat-feed" class="chat-feed"></div>
+      <button id="chat-jump-btn" class="chat-jump-btn" type="button" hidden>Nuevos mensajes ↓</button>
+
+      <div id="chat-quick-replies" class="chat-quick-replies" hidden></div>
+
+      <div class="chat-run-controls">
+        <button id="chat-stop-btn" class="chat-stop-btn" type="button" hidden>■ Detener</button>
+        <button id="chat-resume-btn" class="chat-resume-btn" type="button" hidden>▶ Continuar</button>
+        <button id="chat-finish-btn" class="chat-finish-btn" type="button" hidden>Finalizar sesión</button>
+      </div>
+
+      <footer class="chat-composer">
+        <textarea id="chat-input" rows="1" placeholder="Escribe una respuesta..." disabled></textarea>
+        <button id="chat-send-btn" class="chat-send-btn" type="button" disabled>Enviar</button>
+      </footer>
+    </aside>
+
+    <section id="settings-window" class="area-window settings-window draggable-window hidden"
+      aria-label="Configuración del builder">
+      <div class="area-selector-header window-drag-handle" data-drag-handle>
+        <div>
+          <p class="preview-kicker">Website Builder</p>
+          <h2>Configuración</h2>
+        </div>
+        <button id="close-settings-window" class="card-close" type="button" title="Cerrar configuración">x</button>
+      </div>
+      <div id="settings-providers"></div>
+      <label class="settings-row">
+        <span>Modelo por defecto</span>
+        <select id="settings-model-select"></select>
+      </label>
+      <label class="settings-row">
+        <span>API key (opcional — usa tu sesión de Claude Code)</span>
+        <input id="settings-api-key" type="password" autocomplete="off" placeholder="sk-ant-..." />
+      </label>
+      <p id="settings-status-note" class="provider-sub"></p>
+      <div class="settings-actions">
+        <button id="settings-save-btn" class="settings-save-btn" type="button">Guardar</button>
+        <button id="settings-check-btn" class="settings-check-btn" type="button">Verificar</button>
+      </div>
+    </section>
   </main>
 
   <script src="config.js"></script>
+  <script src="builder-api.js"></script>
+  <script src="builder-chat.js"></script>
+  <script src="builder-settings.js"></script>
   <script src="app.js"></script>
 </body>
 

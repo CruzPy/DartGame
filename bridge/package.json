@@ -1,0 +1,10 @@
+{
+  "name": "dart-builder-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local bridge: serves the DART Business Finder and runs dr-site-builder builds through the Claude Code CLI.",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

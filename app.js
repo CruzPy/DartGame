@@ -312,6 +312,8 @@ function normalizePlace(place, dartPosition) {
     latitude,
     longitude,
     websiteUrl: place.website || '',
+    socialUrl: (place.website && !classification.hasRealWebsite) ? place.website : '',
+    mapsPhotoCount: place.photos ? place.photos.length : 0,
     rating: place.rating || null,
     reviewCount: place.user_ratings_total || 0,
     distanceMeters: distanceMeters(dartPosition, { lat: latitude, lng: longitude }),
@@ -543,7 +545,7 @@ function fetchPlaceDetails(places) {
   const fields = [
     'place_id', 'name', 'types', 'geometry', 'formatted_address', 'vicinity',
     'website', 'url', 'rating', 'user_ratings_total', 'formatted_phone_number',
-    'international_phone_number', 'business_status',
+    'international_phone_number', 'business_status', 'photos',
   ];
 
   return Promise.all(places.map(place => new Promise(resolve => {
@@ -695,7 +697,11 @@ function renderWinnerCard(place) {
   setActionLink('winner-website-link', place.websiteUrl, getWebsiteLinkLabel(place.websiteUrl), !place.websiteUrl);
 
   const buildBtn = document.getElementById('winner-build-btn');
-  if (buildBtn) buildBtn.onclick = () => copyBuilderPayload(place, buildBtn);
+  if (buildBtn) {
+    buildBtn.onclick = () => (window.BuilderChat
+      ? BuilderChat.openForPlace(place)
+      : copyBuilderPayload(place, buildBtn));
+  }
 
   const card = document.getElementById('winner-card');
   bringWindowToFront(card);
@@ -723,6 +729,8 @@ function buildBuilderPayload(place) {
     reviewCount: place.reviewCount || 0,
     hasRealWebsite: Boolean(place.hasRealWebsite),
     websiteUrl: place.websiteUrl || '',
+    socialUrl: place.socialUrl || '',
+    mapsPhotoCount: place.mapsPhotoCount || 0,
   };
 }
 

@@ -125,19 +125,43 @@ Do not commit your real `config.js` file. It is intentionally listed in `.gitign
 
 ## Run Locally
 
-Because this is a static app, you can open `index.html` directly in a browser.
-
-For a local server, use any static server. With Node installed:
+**Recommended (with the Website Builder):** start the bridge server — it serves the
+app and powers the in-app "🌐 Hacer Página Web" chat sidebar:
 
 ```bash
-npx http-server . -p 5500 -c-1
+node bridge/server.js
 ```
 
-Then open:
+Then open `http://127.0.0.1:4173`. (From the workspace root, `start-dart.cmd`
+does both steps.) The bridge runs website builds through your locally installed
+Claude Code CLI — you need `claude` installed and logged in (`claude login`).
 
-```text
-http://localhost:5500
-```
+**Map-only fallback:** the finder itself is still a static app — you can open
+`index.html` directly or use any static server (`npx http-server . -p 5500 -c-1`).
+Without the bridge, the build button still opens the confirmation card, but
+"Generar sitio web" is disabled — use the "Copiar payload (manual)" button
+there to copy the handoff JSON to the clipboard (the old workflow).
+
+## Website Builder (bridge + chat sidebar)
+
+Selecting a winner and clicking "🌐 Hacer Página Web" opens a chat sidebar that
+pushes the map aside, shows a confirmation card (business details + model
+picker), and — on "Generar sitio web" — runs the `dr-site-builder` skill
+end-to-end through the Claude Code CLI, streaming every step into the chat.
+You can answer the skill's sí/no checkpoints inline, approve/deny tool
+permissions, stop and continue at any point, and reload the page without
+losing the build (it re-attaches automatically). Per-build token usage and
+API-equivalent cost are recorded and shown when the build finishes.
+
+- `bridge/` — zero-dependency Node server (127.0.0.1:4173): static serving,
+  REST + SSE API, provider adapters (`bridge/providers/`), build lifecycle and
+  event log (`bridge/data/`, gitignored).
+- `builder-api.js` / `builder-chat.js` / `builder-settings.js` / `builder.css`
+  — the frontend client, chat sidebar, and settings window (⚙ in the top bar:
+  provider status, default model, optional API key stored outside the repo).
+- Engine v1 is the local Claude Code CLI (billed to your Claude subscription).
+  The adapter interface is provider-agnostic so an API-key backend (Claude
+  Agent SDK) or other vendors can be added without reworking the UI.
 
 ## Deploy To GitHub Pages
 
