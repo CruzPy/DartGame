@@ -132,9 +132,10 @@ app and powers the in-app "🌐 Hacer Página Web" chat sidebar:
 node bridge/server.js
 ```
 
-Then open `http://127.0.0.1:4173`. (From the workspace root, `start-dart.cmd`
-does both steps.) The bridge runs website builds through your locally installed
-Claude Code CLI — you need `claude` installed and logged in (`claude login`).
+Then open `http://127.0.0.1:4173`. (`start-dart.cmd` in this folder — or the
+`Dart Game.lnk` shortcut in the workspace root that runs it — does both steps.)
+The bridge runs website builds through your locally installed Claude Code CLI —
+you need `claude` installed and logged in (`claude login`).
 
 **Map-only fallback:** the finder itself is still a static app — you can open
 `index.html` directly or use any static server (`npx http-server . -p 5500 -c-1`).
