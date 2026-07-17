@@ -27,6 +27,8 @@
     suppressCelebration: false, // true when replaying an already-finished build
     toolRows: new Map(),
     permCards: new Map(),
+    reconnectNote: null, // single reused element — never spam one per retry
+    reconnectTries: 0,
   };
 
   const $ = (id) => document.getElementById(id);
@@ -411,6 +413,36 @@
     row.classList.add(data.ok ? 'ok' : 'fail');
   }
 
+  // ---------- Reconnect indicator ----------------------------------------------
+  // EventSource auto-retries a dropped/absent server every few seconds and fires
+  // `error` each time. Show ONE reusable note (escalating if the server is truly
+  // gone), never one note per retry.
+  function showReconnecting() {
+    S.reconnectTries += 1;
+    if (!S.reconnectNote) {
+      const p = document.createElement('p');
+      p.className = 'msg system reconnecting';
+      S.reconnectNote = p;
+      feedAppend(p);
+    }
+    // ~3 retries ≈ ~10s down: no longer a blip — tell them the server stopped.
+    S.reconnectNote.textContent = S.reconnectTries >= 3
+      ? 'Se perdió la conexión con el servidor. Reinícialo (Dart Game.lnk); el build continúa solo al reconectar.'
+      : 'Reconectando…';
+  }
+
+  function clearReconnecting(reconnected) {
+    S.reconnectTries = 0;
+    if (!S.reconnectNote) return;
+    if (reconnected) {
+      S.reconnectNote.textContent = 'Reconectado.';
+      S.reconnectNote.classList.remove('reconnecting');
+    } else {
+      S.reconnectNote.remove();
+    }
+    S.reconnectNote = null; // a later drop starts a fresh single note
+  }
+
   // ---------- SSE wiring ----------------------------------------------------------
   const STATUS_TO_PHASE = {
     starting: 'starting',
@@ -454,9 +486,8 @@
         addErrorBlock(d.message);
         if (d.fatal) { setPhase('error'); clearActiveBuild(); }
       },
-      __error: (readyState) => {
-        if (readyState !== EventSource.CLOSED) addSystemNote('Reconectando…');
-      },
+      __open: () => clearReconnecting(true), // no-op on first connect (no note yet)
+      __error: () => showReconnecting(),
     });
   }
 
@@ -468,6 +499,8 @@
     S.renderTimer = null;
     S.toolRows.clear();
     S.permCards.clear();
+    S.reconnectNote = null;
+    S.reconnectTries = 0;
   }
 
   function clearFeed() {

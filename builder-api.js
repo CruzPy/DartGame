@@ -66,6 +66,7 @@
         if (handlers[type]) handlers[type](envelope.data, envelope);
       });
     }
+    if (handlers.__open) es.onopen = () => handlers.__open();
     if (handlers.__error) es.onerror = () => handlers.__error(es.readyState);
     return { close: () => es.close() };
   }

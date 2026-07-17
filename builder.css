@@ -52,6 +52,12 @@ body.chat-open .status-toast {
   left: calc((100vw - var(--chat-width)) / 2);
 }
 
+/* Single reconnect note escalates to an amber warning when the server is gone. */
+.msg.system.reconnecting {
+  color: #9a6a00;
+  font-weight: 700;
+}
+
 /* AI toggle in the top bar: teal accent while the sidebar is open. */
 body.chat-open #ai-toggle-btn {
   background: var(--teal);
