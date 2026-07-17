@@ -12,14 +12,15 @@
 /* ---------- Split-view layout: shrink the map, shift right-anchored UI ---- */
 
 #map {
-  transition: right 0.28s var(--chat-ease);
+  transition: width 0.28s var(--chat-ease);
 }
 
 body.chat-open #map {
-  /* Base rule is width:100vw which defeats `right` — must go auto. */
-  width: auto;
-  height: auto;
-  right: var(--chat-width);
+  /* Google Maps forces inline position:relative on this div, so right-offsets
+     shift it instead of shrinking it (and height:auto collapses to 0).
+     Size it explicitly: keep full height, give the chat its width. */
+  width: calc(100vw - var(--chat-width));
+  height: 100vh;
 }
 
 .top-bar,
@@ -49,6 +50,12 @@ body.chat-open .area-window:not(.drag-positioned) {
 body.chat-open .throw-dock,
 body.chat-open .status-toast {
   left: calc((100vw - var(--chat-width)) / 2);
+}
+
+/* AI toggle in the top bar: teal accent while the sidebar is open. */
+body.chat-open #ai-toggle-btn {
+  background: var(--teal);
+  color: #fff;
 }
 
 /* ---------- Chat panel ---------------------------------------------------- */
@@ -700,7 +707,7 @@ body.chat-open .chat-panel {
   /* Full-screen sheet on phones: no split view. */
   .chat-panel { width: 100vw; border-left: none; }
 
-  body.chat-open #map { width: 100vw; height: 100vh; right: 0; }
+  body.chat-open #map { width: 100vw; height: 100vh; }
   body.chat-open .top-bar { right: 16px; }
   body.chat-open .winner-card:not(.drag-positioned),
   body.chat-open .preview-card:not(.drag-positioned),

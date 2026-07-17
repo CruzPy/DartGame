@@ -157,8 +157,10 @@ API-equivalent cost are recorded and shown when the build finishes.
   REST + SSE API, provider adapters (`bridge/providers/`), build lifecycle and
   event log (`bridge/data/`, gitignored).
 - `builder-api.js` / `builder-chat.js` / `builder-settings.js` / `builder.css`
-  — the frontend client, chat sidebar, and settings window (⚙ in the top bar:
-  provider status, default model, optional API key stored outside the repo).
+  — the frontend client, chat sidebar, and settings window. The "✨ AI" button
+  in the top bar expands/collapses the sidebar; the ⚙ inside the chat header
+  opens settings (provider status, default model, optional API key stored
+  outside the repo).
 - Engine v1 is the local Claude Code CLI (billed to your Claude subscription).
   The adapter interface is provider-agnostic so an API-key backend (Claude
   Agent SDK) or other vendors can be added without reworking the UI.

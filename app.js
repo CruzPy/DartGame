@@ -696,6 +696,8 @@ function renderWinnerCard(place) {
   setActionLink('winner-google-link', place.googleMapsUrl, 'Open in Google Maps', false);
   setActionLink('winner-website-link', place.websiteUrl, getWebsiteLinkLabel(place.websiteUrl), !place.websiteUrl);
 
+  window.__lastWinnerPlace = place; // lets the top-bar AI toggle open this winner
+
   const buildBtn = document.getElementById('winner-build-btn');
   if (buildBtn) {
     buildBtn.onclick = () => (window.BuilderChat

@@ -104,8 +104,6 @@
     $('settings-save-btn').onclick = save;
     $('settings-check-btn').onclick = () => load({ withStatus: true });
     $('settings-api-key').addEventListener('input', () => { apiKeyDirty = true; });
-    const topBtn = $('settings-btn');
-    if (topBtn) topBtn.onclick = open;
   }
 
   window.BuilderSettings = Object.freeze({ open, close });

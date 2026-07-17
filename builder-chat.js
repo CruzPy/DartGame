@@ -245,7 +245,7 @@
     const mapDiv = $('map');
     if (gmap && center && mapDiv) {
       const onEnd = (e) => {
-        if (e.propertyName !== 'right') return;
+        if (e.propertyName !== 'width') return;
         mapDiv.removeEventListener('transitionend', onEnd);
         try {
           google.maps.event.trigger(gmap, 'resize');
@@ -621,6 +621,29 @@
     closePanel();
   }
 
+  // Top-bar "AI" button: expand/collapse the sidebar. Reopening keeps whatever
+  // was on screen; a fresh open seeds the current winner's confirm card, or an
+  // empty-state hint when no dart has landed yet.
+  function toggle() {
+    grabEls();
+    if (document.body.classList.contains('chat-open')) { closePanel(); return; }
+    const winner = window.__lastWinnerPlace;
+    // Nothing running/finished on screen → follow the latest winner. A build
+    // in progress (or its transcript) is never clobbered by a toggle.
+    if (winner && ['idle', 'confirming'].includes(S.phase)
+      && els.chatBusinessName.textContent !== winner.name) {
+      openForPlace(winner);
+      return;
+    }
+    if (!els.chatFeed.children.length) {
+      if (winner) { openForPlace(winner); return; }
+      els.chatBusinessName.textContent = 'Website Builder';
+      setPhase('idle');
+      addSystemNote('Tira un dardo y elige un ganador para generar su sitio web, o abre un build anterior con ↻.');
+    }
+    openPanel();
+  }
+
   // ---------- Wiring -----------------------------------------------------------------
   function init() {
     grabEls();
@@ -633,6 +656,8 @@
     els.chatSendBtn.onclick = () => sendUserText(els.chatInput.value);
     els.chatBuildsBtn.onclick = toggleBuildsMenu;
     els.chatSettingsBtn.onclick = () => { if (window.BuilderSettings) BuilderSettings.open(); };
+    const aiBtn = $('ai-toggle-btn');
+    if (aiBtn) aiBtn.onclick = toggle;
     els.chatInput.addEventListener('input', autoGrow);
     els.chatInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendUserText(els.chatInput.value); }
@@ -671,6 +696,6 @@
     }
   }
 
-  window.BuilderChat = Object.freeze({ openForPlace, close, openExisting });
+  window.BuilderChat = Object.freeze({ openForPlace, close, toggle, openExisting });
   init();
 })();
